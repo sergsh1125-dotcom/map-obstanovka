@@ -2,80 +2,56 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
 from folium.features import DivIcon
 
-# --- НАЛАШТУВАННЯ СТОРІНКИ ---
-st.set_page_config(layout="wide", page_title="Система Обстановки (Cloud)")
+# --- ВСТАВТЕ ВАШЕ ПОСИЛАННЯ ТУТ ---
+CSV_URL = https://docs.google.com/spreadsheets/d/155wUVKxKKHjJwOUEM8e6OIinW11C7JGULv13icA8Mvg/edit?gid=0#gid=0:~:text=https%3A//docs.google.com/spreadsheets/d/e/2PACX%2D1vTbUg4s6sTP1yo48ZhAuFjh5UzKetYeQvnGWAnxHdyuvs_DiCIcqY2555aclFUNXzt7zvQ8ggtNekkg/pub%3Foutput%3Dcsv "ТУТ_ВАШЕ_ПОСИЛАННЯ_ЯКЕ_ВИ_СКОПІЮВАЛИ"
 
-# --- ПІДКЛЮЧЕННЯ ДО ТАБЛИЦІ ---
-# Потрібно додати секрети в Streamlit Cloud (Settings -> Secrets)
-conn = st.connection("gsheets", type=GSheetsConnection)
+st.set_page_config(layout="wide", page_title="Оперативна карта")
 
-def get_data():
-    return conn.read(ttl="10s") # Оновлювати дані кожні 10 секунд
+st.title("🗺️ Оперативна обстановка (Live-карта)")
 
-# --- ОСНОВНИЙ ІНТЕРФЕЙС ---
-st.title("🗺️ Оперативна обстановка (Sync з Google Sheets)")
+# Функція завантаження даних
+@st.cache_data(ttl=10)
+def load_data(url):
+    try:
+        # Додаємо мітку часу, щоб обійти кешування браузера
+        return pd.read_csv(f"{url}&t={pd.Timestamp.now().timestamp()}")
+    except Exception as e:
+        st.error(f"Не вдалося завантажити дані: {e}")
+        return pd.DataFrame(columns=["Назва", "Широта", "Довгота", "Колір"])
 
-# Завантажуємо актуальні дані з хмари
-df_objects = get_data()
+df = load_data(CSV_URL)
 
-col_map, col_ctrl = st.columns([3, 1])
+# Відображення карти
+if not df.empty:
+    # Центруємо карту по середній точці ваших даних
+    m = folium.Map(location=[df['Широта'].mean(), df['Довгота'].mean()], zoom_start=7)
 
-with col_ctrl:
-    st.subheader("📍 Нова відмітка")
-    c_lat = st.session_state.get('last_clicked_lat', 50.4500)
-    c_lon = st.session_state.get('last_clicked_lon', 30.5233)
-    
-    with st.form("add_point"):
-        new_label = st.text_input("Назва:")
-        new_lat = st.number_input("Широта:", value=c_lat, format="%.4f")
-        new_lon = st.number_input("Довгота:", value=c_lon, format="%.4f")
-        new_color = st.color_picker("Колір:", "#FF0000")
-        
-        if st.form_submit_button("Зберегти в хмару"):
-            # Створюємо новий рядок
-            new_data = pd.DataFrame([{
-                "Назва": new_label,
-                "Широта": new_lat,
-                "Довгота": new_lon,
-                "Колір": new_color
-            }])
-            # Оновлюємо таблицю
-            updated_df = pd.concat([df_objects, new_data], ignore_index=True)
-            conn.update(data=updated_df)
-            st.success("Дані збережено!")
-            st.rerun()
-
-with col_map:
-    m = folium.Map(location=[c_lat, c_lon], zoom_start=7)
-    
-    # Малюємо точки з бази даних
-    for _, row in df_objects.iterrows():
+    for _, row in df.iterrows():
+        # Додаємо точку (маркер)
         folium.CircleMarker(
             location=[row["Широта"], row["Довгота"]],
-            radius=8, color=row["Колір"], fill=True, fill_opacity=0.7
+            radius=8,
+            color=row["Колір"],
+            fill=True,
+            fill_opacity=0.7,
+            popup=row["Назва"]
         ).add_to(m)
         
+        # Додаємо підпис поруч із точкою
         folium.Marker(
             location=[row["Широта"], row["Довгота"]],
-            icon=DivIcon(html=f'<div style="font-size:11pt; color:{row["Колір"]}; font-weight:bold; text-shadow:1px 1px 2px white;">{row["Назва"]}</div>')
+            icon=DivIcon(
+                icon_size=(150,36),
+                icon_anchor=(0,0),
+                html=f'<div style="font-size: 11pt; color: {row["Колір"]}; font-weight: bold; text-shadow: 1px 1px 2px white;">{row["Назва"]}</div>'
+            )
         ).add_to(m)
 
-    map_data = st_folium(m, width="100%", height=600)
+    st_folium(m, width="100%", height=600)
+else:
+    st.warning("Таблиця порожня або посилання невірне. Перевірте заголовки: Назва, Широта, Довгота, Колір")
 
-    # Обробка кліку для координат
-    if map_data and map_data.get("last_clicked"):
-        st.session_state['last_clicked_lat'] = map_data["last_clicked"]["lat"]
-        st.session_state['last_clicked_lon'] = map_data["last_clicked"]["lng"]
-        st.rerun()
-
-# --- ТАБЛИЦЯ ТА ВИДАЛЕННЯ ---
-st.subheader("📝 Редагування бази даних")
-edited_df = st.data_editor(df_objects, num_rows="dynamic", use_container_width=True)
-
-if st.button("Оновити зміни в таблиці"):
-    conn.update(data=edited_df)
-    st.success("Базу даних синхронізовано!")
+if st.button("🔄 Оновити карту"):
     st.rerun()
