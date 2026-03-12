@@ -44,13 +44,14 @@ if not df.empty:
         name='Рельєф (Topo)',
         attr='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)'
     ).add_to(m)
-    # 2. НАНЕСЕННЯ ОБ'ЄКТІВ
+   # НАНЕСЕННЯ ОБ'ЄКТІВ
     for _, row in df.iterrows():
         try:
             lat, lon = float(row["Широта"]), float(row["Довгота"])
-            color = row["Колір"] if pd.notna(row["Колір"]) else "blue"
-            obj_type = str(row["Тип"]).strip().lower()
+            color = row["Колір"] if pd.notna(row["Колір"]) else "#0000FF"
+            obj_type = str(row["Тип"]).strip().lower() if pd.notna(row["Тип"]) else "точка"
 
+            # Малюємо ТОЧКУ
             if obj_type == 'точка':
                 folium.CircleMarker(
                     location=[lat, lon], radius=8, color=color, fill=True, popup=row["Назва"]
@@ -60,17 +61,26 @@ if not df.empty:
                     icon=DivIcon(html=f'<div style="font-size:10pt; color:{color}; font-weight:bold; white-space:nowrap;">{row["Назва"]}</div>')
                 ).add_to(m)
 
+            # Малюємо ЛІНІЮ (якщо є друга координата в Координати_2)
             elif obj_type == 'лінія' and pd.notna(row['Координати_2']):
-                # Розбиваємо другу координату
-                lat2, lon2 = map(float, str(row['Координати_2']).split(','))
-                folium.PolyLine([[lat, lon], [lat2, lon2]], color=color, weight=5, opacity=0.8, popup=row["Назва"]).add_to(m)
+                coords2 = str(row['Координати_2']).split(',')
+                lat2, lon2 = float(coords2[0].strip()), float(coords2[1].strip())
+                folium.PolyLine(
+                    locations=[[lat, lon], [lat2, lon2]], 
+                    color=color, 
+                    weight=5, 
+                    opacity=0.8, 
+                    popup=row["Назва"]
+                ).add_to(m)
 
+            # Малюємо просто ТЕКСТ
             elif obj_type == 'текст':
                 folium.Marker(
                     location=[lat, lon],
-                    icon=DivIcon(html=f'<div style="font-size:12pt; color:{color}; font-weight:bold; background:rgba(255,255,255,0.5); padding:2px; border-radius:3px;">{row["Назва"]}</div>')
+                    icon=DivIcon(html=f'<div style="font-size:12pt; color:{color}; font-weight:bold; background:rgba(255,255,255,0.6); border-radius:3px; padding:2px;">{row["Назва"]}</div>')
                 ).add_to(m)
-        except: continue
+        except Exception as e:
+            continue
 
     # Додаємо контроль шарів (кнопка вгорі справа)
     folium.LayerControl().add_to(m)
@@ -81,15 +91,14 @@ if not df.empty:
         st_folium(m, width="100%", height=650)
     
     with col2:
-        # 4. ЛЕГЕНДА
+ # 4. ЛЕГЕНДА (Виправлено)
         st.subheader("📌 Легенда")
-        # Створюємо унікальний список назв та кольорів з таблиці
-        legend_items = df[['Назва', 'Колір']].drop_duplicates().head(10)
-        for _, item in legend_items.iterrows():
-            st.markdown(f'<p><span style="color:{item["Колір"]}; font-size:20px;">●</span> {item["Назва"]}</p>', unsafe_allow_value=True)
+        # Беремо унікальні назви та кольори, видаляючи пусті значення
+        legend_items = df[['Назва', 'Колір']].dropna().drop_duplicates().head(15)
         
-        if st.button("🔄 Оновити дані"):
-            st.rerun()
-
-else:
-    st.error("Будь ласка, перевірте таблицю.")
+        for _, item in legend_items.iterrows():
+            # Правильний аргумент: unsafe_allow_html=True
+            st.markdown(
+                f'<p><span style="color:{item["Колір"]}; font-size:20px;">●</span> {item["Назва"]}</p>', 
+                unsafe_allow_html=True
+            )
