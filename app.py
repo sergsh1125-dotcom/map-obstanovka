@@ -28,15 +28,22 @@ if not df.empty:
     # 1. СТВОРЕННЯ КАРТИ ТА ВИБІР ШАРІВ
     m = folium.Map(location=[df['Широта'].mean(), df['Довгота'].mean()], zoom_start=6)
     
-    # Додаємо різні типи мап
+   # Вибір шарів (Tile Layers)
     folium.TileLayer('openstreetmap', name='Схема (OpenStreetMap)').add_to(m)
+    
+    # Супутник Esri
     folium.TileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         name='Супутник (Esri)',
-        attr='Esri World Imagery'
+        attr='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
     ).add_to(m)
-    folium.TileLayer('Stamen Terrain', name='Рельєф (Terrain)').add_to(m)
 
+    # Рельєф (OpenTopoMap) - надійна заміна Stamen Terrain
+    folium.TileLayer(
+        'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        name='Рельєф (Topo)',
+        attr='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)'
+    ).add_to(m)
     # 2. НАНЕСЕННЯ ОБ'ЄКТІВ
     for _, row in df.iterrows():
         try:
