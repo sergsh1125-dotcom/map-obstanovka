@@ -5,7 +5,7 @@ import pandas as pd
 from folium.features import DivIcon
 
 # --- ВСТАВТЕ ВАШЕ ПОСИЛАННЯ ТУТ ---
-CSV_URL = https://docs.google.com/spreadsheets/d/155wUVKxKKHjJwOUEM8e6OIinW11C7JGULv13icA8Mvg/edit?gid=0#gid=0:~:text=https%3A//docs.google.com/spreadsheets/d/e/2PACX%2D1vTbUg4s6sTP1yo48ZhAuFjh5UzKetYeQvnGWAnxHdyuvs_DiCIcqY2555aclFUNXzt7zvQ8ggtNekkg/pub%3Foutput%3Dcsv "ТУТ_ВАШЕ_ПОСИЛАННЯ_ЯКЕ_ВИ_СКОПІЮВАЛИ"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTbUg4s6sTP1yo48ZhAuFjh5UzKetYeQvnGWAnxHdyuvs_DiCIcqY2555aclFUNXzt7zvQ8ggtNekkg/pub?output=csv"
 
 st.set_page_config(layout="wide", page_title="Оперативна карта")
 
