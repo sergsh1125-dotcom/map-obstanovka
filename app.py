@@ -1,104 +1,233 @@
 import streamlit as st
+import pandas as pd
 import folium
 from streamlit_folium import st_folium
-import pandas as pd
-from folium.features import DivIcon
+from datetime import datetime
 
-# Посилання на вашу таблицю
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTbUg4s6sTP1yo48ZhAuFjh5UzKetYeQvnGWAnxHdyuvs_DiCIcqY2555aclFUNXzt7zvQ8ggtNekkg/pub?output=csv"
+# ===============================
+# 1. Налаштування сторінки
+# ===============================
+st.set_page_config(page_title="КАРТА РХБ ОБСТАНОВКИ", page_icon="☢️", layout="wide")
 
-st.set_page_config(layout="wide", page_title="Розширена карта")
+st.markdown("""
+<style>
+#MainMenu, footer, header {visibility: hidden;}
+.stButton button {font-weight: bold;}
+</style>
+""", unsafe_allow_html=True)
 
-def load_data(url):
-    try:
-        df = pd.read_csv(f"{url}&t={pd.Timestamp.now().timestamp()}")
-        df.columns = df.columns.str.strip().str.capitalize()
-        # Заповнюємо пусті типи значенням "Точка"
-        if 'Тип' not in df.columns: df['Тип'] = 'Точка'
-        df['Тип'] = df['Тип'].fillna('Точка')
-        return df
-    except:
-        return pd.DataFrame()
+# ===============================
+# 2. Стан програми
+# ===============================
+if "data" not in st.session_state:
+    st.session_state.data = pd.DataFrame(columns=["lat", "lon", "value", "unit", "time", "type", "substance"])
 
-df = load_data(CSV_URL)
+if "clicked_coords" not in st.session_state:
+    st.session_state.clicked_coords = None
 
-st.title("🗺️ Оперативна обстановка: Розширений режим")
+# ===============================
+# 3. Підпис маркеру
+# ===============================
+def get_custom_marker_html(value_text, date_text):
+    return f"""
+<div style="display:inline-block; font-family: Arial; font-size:10pt; color:blue; font-weight:bold; text-align:center;
+text-shadow:-1px -1px 0 #fff,1px -1px 0 #fff,-1px 1px 0 #fff,1px 1px 0 #fff;">
+    <div style="white-space: nowrap;">{value_text}</div>
+    <div>{date_text}</div>
+</div>
+"""
 
-if not df.empty:
-    # 1. СТВОРЕННЯ КАРТИ ТА ВИБІР ШАРІВ
-    m = folium.Map(location=[df['Широта'].mean(), df['Довгота'].mean()], zoom_start=6)
-    
-   # Вибір шарів (Tile Layers)
-    folium.TileLayer('openstreetmap', name='Схема (OpenStreetMap)').add_to(m)
-    
-    # Супутник Esri
+# ===============================
+# 4. Створення карти
+# ===============================
+def create_map(df_data, start_lat, start_lon, zoom_val):
+    m = folium.Map(location=[start_lat, start_lon], zoom_start=zoom_val, tiles=None, control_scale=True)
+
+    folium.TileLayer('OpenStreetMap', name='Стандартна карта', show=True).add_to(m)
+
     folium.TileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        name='Супутник (Esri)',
-        attr='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
+        tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        attr='Google Satellite',
+        name='Супутник',
+        show=False
     ).add_to(m)
 
-    # Рельєф (OpenTopoMap) - надійна заміна Stamen Terrain
-    folium.TileLayer(
-        'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-        name='Рельєф (Topo)',
-        attr='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)'
-    ).add_to(m)
-   # НАНЕСЕННЯ ОБ'ЄКТІВ
-    for _, row in df.iterrows():
-        try:
-            lat, lon = float(row["Широта"]), float(row["Довгота"])
-            color = row["Колір"] if pd.notna(row["Колір"]) else "#0000FF"
-            obj_type = str(row["Тип"]).strip().lower() if pd.notna(row["Тип"]) else "точка"
+    if st.session_state.clicked_coords:
+        folium.Marker(
+            [st.session_state.clicked_coords['lat'], st.session_state.clicked_coords['lng']],
+            icon=folium.Icon(color="red")
+        ).add_to(m)
 
-            # Малюємо ТОЧКУ
-            if obj_type == 'точка':
+    if not df_data.empty:
+        for day_val in sorted(df_data['time'].unique(), reverse=True):
+            group = folium.FeatureGroup(name=f"📅 {day_val}")
+
+            for _, r in df_data[df_data['time'] == day_val].iterrows():
+
+                color = "blue" if r["type"] == "радіоактивне забруднення" else "black"
+
+                val_label = (
+                    f"☢ {float(r['value']):.2f} {r['unit']}"
+                    if r["type"] == "радіоактивне забруднення"
+                    else f"☣ {r['substance']} {float(r['value']):.2f} {r['unit']}"
+                )
+
                 folium.CircleMarker(
-                    location=[lat, lon], radius=8, color=color, fill=True, popup=row["Назва"]
-                ).add_to(m)
+                    [r.lat, r.lon],
+                    radius=6,
+                    color=color,
+                    fill=True,
+                    fill_color=color
+                ).add_to(group)
+
                 folium.Marker(
-                    location=[lat, lon],
-                    icon=DivIcon(html=f'<div style="font-size:10pt; color:{color}; font-weight:bold; white-space:nowrap;">{row["Назва"]}</div>')
-                ).add_to(m)
+                    [r.lat, r.lon],
+                    icon=folium.DivIcon(
+                        icon_anchor=(70, 45),
+                        html=get_custom_marker_html(val_label, str(r['time']))
+                    )
+                ).add_to(group)
 
-            # Малюємо ЛІНІЮ (якщо є друга координата в Координати_2)
-            elif obj_type == 'лінія' and pd.notna(row['Координати_2']):
-                coords2 = str(row['Координати_2']).split(',')
-                lat2, lon2 = float(coords2[0].strip()), float(coords2[1].strip())
-                folium.PolyLine(
-                    locations=[[lat, lon], [lat2, lon2]], 
-                    color=color, 
-                    weight=5, 
-                    opacity=0.8, 
-                    popup=row["Назва"]
-                ).add_to(m)
+            group.add_to(m)
 
-            # Малюємо просто ТЕКСТ
-            elif obj_type == 'текст':
-                folium.Marker(
-                    location=[lat, lon],
-                    icon=DivIcon(html=f'<div style="font-size:12pt; color:{color}; font-weight:bold; background:rgba(255,255,255,0.6); border-radius:3px; padding:2px;">{row["Назва"]}</div>')
-                ).add_to(m)
-        except Exception as e:
-            continue
+    folium.LayerControl(collapsed=False).add_to(m)
+    return m
 
-    # Додаємо контроль шарів (кнопка вгорі справа)
-    folium.LayerControl().add_to(m)
+# ===============================
+# 5. ПУЛЬТ УПРАВЛІННЯ
+# ===============================
+st.header("☢️ КАРТА РХБ ОБСТАНОВКИ")
 
-    # 3. ВІДОБРАЖЕННЯ
-    col1, col2 = st.columns([4, 1])
-    with col1:
-        st_folium(m, width="100%", height=650)
-    
-    with col2:
- # 4. ЛЕГЕНДА (Виправлено)
-        st.subheader("📌 Легенда")
-        # Беремо унікальні назви та кольори, видаляючи пусті значення
-        legend_items = df[['Назва', 'Колір']].dropna().drop_duplicates().head(15)
-        
-        for _, item in legend_items.iterrows():
-            # Правильний аргумент: unsafe_allow_html=True
-            st.markdown(
-                f'<p><span style="color:{item["Колір"]}; font-size:20px;">●</span> {item["Назва"]}</p>', 
-                unsafe_allow_html=True
+col_map, col_gui = st.columns([3, 1])
+
+with col_gui:
+    st.subheader("ПУЛЬТ УПРАВЛІННЯ")
+
+    # ===== Координати =====
+    if st.session_state.clicked_coords:
+        c_lat, c_lon = st.session_state.clicked_coords['lat'], st.session_state.clicked_coords['lng']
+        st.write(f"Вибрано: {c_lat:.6f}, {c_lon:.6f}")
+
+        c1, c2 = st.columns(2)
+        if c1.button("Вставити координати у форму"):
+            st.session_state.manual_lat = c_lat
+            st.session_state.manual_lon = c_lon
+            st.rerun()
+
+        if c2.button("Виключити маркер"):
+            st.session_state.clicked_coords = None
+            st.rerun()
+
+    st.divider()
+
+    # ===== Вибір типу =====
+    data_type = st.radio(
+        "Тип забруднення",
+        ["радіоактивне забруднення", "хімічне забруднення"]
+    )
+
+    # ===== Координати =====
+    st.markdown("### Точка вимірювання")
+
+    l1 = st.number_input("Широта", format="%.6f", value=st.session_state.get('manual_lat', 50.4501))
+    l2 = st.number_input("Довгота", format="%.6f", value=st.session_state.get('manual_lon', 30.5234))
+
+    # ===== Речовина =====
+    substance = ""
+
+    if data_type == "хімічне забруднення":
+        substance = st.text_input("Речовина")
+
+    # ===== Значення =====
+    val = st.number_input("Значення", step=0.01, format="%.2f")
+
+    # ===== Одиниці =====
+    if data_type == "радіоактивне забруднення":
+        uni = st.selectbox("Одиниця", ["мкЗв/год", "мЗв/год"])
+    else:
+        uni = st.selectbox("Одиниця", ["мг/м³"])
+
+    tim = st.date_input("Дата", value=datetime.now()).strftime("%d.%m.%Y")
+
+    if st.button("Нанести на карту"):
+        new_row = pd.DataFrame([{
+            "lat": l1,
+            "lon": l2,
+            "value": val,
+            "unit": uni,
+            "time": tim,
+            "type": data_type,
+            "substance": substance
+        }])
+
+        st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
+        st.rerun()
+
+    st.divider()
+
+    # ===== CSV =====
+    uploaded_file = st.file_uploader("CSV", type=["csv"], label_visibility="collapsed")
+
+    if uploaded_file and st.button("Імпортувати"):
+        df_new = pd.read_csv(uploaded_file)
+
+        if 'time' in df_new.columns:
+            df_new['time'] = pd.to_datetime(df_new['time'], dayfirst=True, errors='coerce').dt.strftime('%d.%m.%Y')
+
+        st.session_state.data = pd.concat([st.session_state.data, df_new], ignore_index=True)
+        st.rerun()
+
+# ===============================
+# 6. КАРТА
+# ===============================
+with col_map:
+    if st.session_state.data.empty:
+        s_lat, s_lon, s_zoom = 49.0, 31.0, 6
+    else:
+        df_c = st.session_state.data.dropna(subset=['lat', 'lon'])
+        s_lat, s_lon = df_c.lat.mean(), df_c.lon.mean()
+        s_zoom = 9
+
+    m = create_map(st.session_state.data, s_lat, s_lon, s_zoom)
+
+    map_output = st_folium(
+        m, width="100%", height=750, returned_objects=["last_clicked"]
+    )
+
+    clicked = map_output.get("last_clicked")
+
+    if clicked and st.session_state.clicked_coords != clicked:
+        st.session_state.clicked_coords = clicked
+        st.rerun()
+
+    # ===== Кнопки =====
+    c1, c2 = st.columns(2)
+
+    if c1.button("Очистити карту"):
+        st.session_state.data = pd.DataFrame(columns=["lat","lon","value","unit","time","type","substance"])
+        st.session_state.clicked_coords = None
+        st.rerun()
+
+    if not st.session_state.data.empty:
+        st.subheader("Точки")
+
+        st.dataframe(
+            st.session_state.data,
+            use_container_width=True
+        )
+
+        if c2.button("Завантажити HTML"):
+            st.download_button(
+                "Завантажити карту",
+                m._repr_html_(),
+                f"map_{datetime.now().strftime('%Y%m%d')}.html",
+                "text/html"
+            )
+
+        if c2.button("Завантажити CSV"):
+            st.download_button(
+                "Завантажити дані",
+                st.session_state.data.to_csv(index=False),
+                f"data_{datetime.now().strftime('%Y%m%d')}.csv",
+                "text/csv"
             )
