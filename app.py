@@ -7,7 +7,7 @@ from datetime import datetime
 # ===============================
 # 1. Налаштування сторінки
 # ===============================
-st.set_page_config(page_title="РАДІАЦІЙНА ТА ХІМІЧНА ОБСТАНОВКА", layout="wide")
+st.set_page_config(page_title="КАРТА РАДІАЦІЙНОЇ ТА ХІМІЧНОЇ ОБСТАНОВКИ", layout="wide")
 
 st.markdown("""
 <style>
@@ -89,7 +89,7 @@ def create_map(df_data, start_lat, start_lon, zoom_val):
             label = f"{r['value']} {r['unit']}"
 
         folium.CircleMarker(
-            [r.lat, r.lon], radius=7, color=main_color, fill=True, fill_color=fill_color, fill_opacity=1
+            [r.lat, r.lon], radius=5, color=main_color, fill=True, fill_color=fill_color, fill_opacity=1
         ).add_to(m)
 
         folium.Marker(
@@ -103,7 +103,7 @@ def create_map(df_data, start_lat, start_lon, zoom_val):
 # ===============================
 # 4. ІНТЕРФЕЙС
 # ===============================
-st.header("📍 СИСТЕМА МОНІТОРИНГУ РХБ ОБСТАНОВКИ")
+st.header("КАРТА РАДІАЦІЙНОЇ ТА ХІМІЧНОЇ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
 with col_gui:
