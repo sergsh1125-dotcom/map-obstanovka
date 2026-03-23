@@ -108,7 +108,7 @@ def create_map(df, start_lat, start_lon, zoom_val):
 # ===============================
 # 4. ІНТЕРФЕЙС
 # ===============================
-st.header("📍 МОНІТОРИНГ РХБ ОБСТАНОВКИ")
+st.header("КАРТА РХБ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
 with col_gui:
