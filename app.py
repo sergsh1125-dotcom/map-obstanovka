@@ -102,7 +102,7 @@ with col_gui:
     lon = st.number_input("Довгота", format="%.6f", value=st.session_state.get('manual_lon', 30.5200))
 
     # --- БЛОК 1: РАДІАЦІЯ ---
-    if mode == "Радіоактивне забруднення"
+    if mode == "Радіоактивне забруднення":
         st.markdown("#### Дані радіаційної розвідки")
         val = st.number_input("ПЕД (значення)", format="%.2f", step=0.01, key="rad_val")
         unit = st.selectbox("Одиниця", ["мкЗв/год", "мЗв/год"], key="rad_unit")
