@@ -7,13 +7,37 @@ from datetime import datetime
 # ===============================
 # 1. Налаштування сторінки
 # ===============================
-st.set_page_config(page_title="РАДІАЦІНА ТА ХІМІЧНА ОБСТАНОВКА", layout="wide")
+st.set_page_config(page_title="РАДІАЦІЙНА ТА ХІМІЧНА ОБСТАНОВКА", layout="wide")
 
 st.markdown("""
 <style>
 #MainMenu, footer, header {visibility: hidden;}
-.stButton button {font-weight: bold; width: 100%; height: 3em; border-radius: 8px; background-color: #f0f2f6;}
-.stButton button:hover {border: 2px solid #4CAF50;}
+
+/* Стиль для всіх кнопок */
+.stButton button {
+    font-weight: bold; 
+    width: 100%; 
+    height: 3em; 
+    border-radius: 8px; 
+    background-color: #FFD600 !important; /* Яскравий жовтий колір (колір попередження) */
+    color: black !important;
+    border: 1px solid #cca300 !important;
+    box-shadow: 0px 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Ефект при наведенні та натисканні */
+.stButton button:hover {
+    background-color: #ffea00 !important;
+    border: 2px solid #4CAF50 !important;
+    box-shadow: 0px 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Окремий стиль для кнопки "Нанести на карту" (робимо її ще помітнішою) */
+div.stButton > button:first-child[data-testid="stBaseButton-primary"] {
+    background-color: #4CAF50 !important;
+    color: white !important;
+    border: 1px solid #388E3C !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -85,11 +109,9 @@ col_map, col_gui = st.columns([3, 1])
 with col_gui:
     st.subheader("ПУЛЬТ УПРАВЛІННЯ")
     
-    # Вибір режиму (використовуємо key для збереження стану)
     mode = st.radio("Оберіть режим:", ["Радіоактивне забруднення", "Хімічне забруднення"], key="mode_switch")
     st.divider()
 
-    # Спільні координати для обох блоків
     if st.session_state.clicked_coords:
         c_lat, c_lon = st.session_state.clicked_coords['lat'], st.session_state.clicked_coords['lng']
         st.info(f"Вибрано на карті: \n{c_lat:.6f}, {c_lon:.6f}")
@@ -101,14 +123,11 @@ with col_gui:
     lat = st.number_input("Широта", format="%.6f", value=st.session_state.get('manual_lat', 50.4500))
     lon = st.number_input("Довгота", format="%.6f", value=st.session_state.get('manual_lon', 30.5200))
 
-    # --- БЛОК 1: РАДІАЦІЯ ---
     if mode == "Радіоактивне забруднення":
         st.markdown("#### Дані радіаційної розвідки")
         val = st.number_input("ПЕД (значення)", format="%.2f", step=0.01, key="rad_val")
         unit = st.selectbox("Одиниця", ["мкЗв/год", "мЗв/год"], key="rad_unit")
-        substance = "" # Для радіації назва не потрібна
-
-    # --- БЛОК 2: ХІМІЯ ---
+        substance = "" 
     else:
         st.markdown("#### Дані хімічної розвідки")
         substance = st.text_input("Назва речовини (напр. Хлор)", key="chem_sub")
@@ -143,14 +162,13 @@ with col_map:
             st.session_state.clicked_coords = clicked
             st.rerun()
 
-    # Панель дій під картою
     c1, c2, c3 = st.columns(3)
-    if c1.button("Очистити карту"):
+    if c1.button("🗑️ Очистити карту"):
         st.session_state.data = pd.DataFrame(columns=["lat","lon","value","unit","time","type","substance"])
         st.session_state.clicked_coords = None
         st.rerun()
     
     if not st.session_state.data.empty:
-        c2.download_button("💾 Зберегти карту в HTML", m_obj._repr_html_(), "map.html", "text/html")
-        c3.download_button("📊 Скачати таблицю CSV", st.session_state.data.to_csv(index=False), "data.csv", "text/csv")
+        c2.download_button("💾 Зберегти карту HTML", m_obj._repr_html_(), "map.html", "text/html")
+        c3.download_button("📊 Скачати CSV", st.session_state.data.to_csv(index=False), "data.csv", "text/csv")
         st.dataframe(st.session_state.data, use_container_width=True)
