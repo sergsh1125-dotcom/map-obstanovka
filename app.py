@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
+import os
 from datetime import datetime
 import streamlit.components.v1 as components
 
@@ -23,7 +24,13 @@ st.markdown("""
     padding: 12px; border-radius: 6px; text-align: center;
     border: 2px solid #FFD600; font-weight: bold; font-size: 16px; margin-bottom: 15px;
 }
-/* Стиль для додаткової кнопки імпорту */
+/* Стиль для червоної кнопки очищення, піднятої вгору */
+.clear-btn button {
+    background-color: #ffebee !important; color: #c62828 !important;
+    border: 1px solid #ef9a9a !important; margin-top: 10px; height: 2.5em;
+}
+.clear-btn button:hover { background-color: #ffcdd2 !important; }
+
 .import-btn button {
     background-color: #4CAF50 !important; color: white !important;
     border: 1px solid #388E3C !important;
@@ -32,20 +39,40 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# 📂 ПІДГОТОВКА ЛОКАЛЬНОЇ ПАПКИ ДЛЯ ВЛАСНИХ УМОВНИХ ЗНАКІВ
+# Ви можете створити папку assets/svg/ поруч з app.py і кидати туди знаки.
+LOCAL_SVG_DIR = "assets/svg"
+if not os.path.exists(LOCAL_SVG_DIR):
+    os.makedirs(LOCAL_SVG_DIR)
+
+# Функція для генерації правильного шляху до іконки (пріоритет локальній папці)
+def get_icon_url(filename, backup_url):
+    local_path = os.path.join(LOCAL_SVG_DIR, filename)
+    if os.path.exists(local_path):
+        # Streamlit Cloud монтує статичні файли проєкту за цим внутрішнім шляхом
+        return f"/app/static/{LOCAL_SVG_DIR}/{filename}"
+    return backup_url
+
+# Визначаємо актуальні шляхи до знаків
+SRC_RADIATION = get_icon_url("detect_radiation.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg")
+SRC_CHEMICAL = get_icon_url("detect_chemical.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg")
+SRC_BIOLOGICAL = get_icon_url("detect_biological.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_biological.svg")
+SRC_NUCLEAR = get_icon_url("nuclear_blast.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/nuclear_blast.svg")
+SRC_POST = get_icon_url("cbrn_post.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/cbrn_post.svg")
+
+
 # Ініціалізація бази точок розвідки
 if "rkhb_points" not in st.session_state:
     st.session_state.rkhb_points = [
-        {"lat": 50.45, "lng": 30.52, "label": "Іприт - 0.05 мг/м³", "date": "17.06.2026", "icon": "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"},
-        {"lat": 50.46, "lng": 30.53, "label": "0.25 мкЗв/год", "date": "16.06.2026", "icon": "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"}
+        {"lat": 50.45, "lng": 30.52, "label": "Іприт - 0.05 мг/м³", "date": "17.06.2026", "icon": SRC_CHEMICAL},
+        {"lat": 50.46, "lng": 30.53, "label": "0.25 мкЗв/год", "date": "16.06.2026", "icon": SRC_RADIATION}
     ]
 
-# Буферні змінні координат
 if "captured_lat" not in st.session_state:
     st.session_state.captured_lat = 50.4500
 if "captured_lng" not in st.session_state:
     st.session_state.captured_lng = 30.5200
 
-# Зчитування нових координат з URL-параметрів карти
 if "click_lat" in st.query_params and "click_lng" in st.query_params:
     try:
         st.session_state.captured_lat = float(st.query_params["click_lat"])
@@ -75,13 +102,13 @@ with col_gui:
             r_val = st.number_input("Показник радіації", value=0.15, step=0.01)
             r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год"])
             lbl = f"{r_val} {r_uni}"
-            ico = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"
+            ico = SRC_RADIATION
         else:
             c_sub = st.text_input("Речовина", value="Іприт")
             c_val = st.number_input("Концентрація", value=0.10, step=0.01)
             c_uni = st.selectbox("Одиниця виміру", ["мг/м³", "ppm"])
             lbl = f"{c_sub} - {c_val} {c_uni}"
-            ico = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"
+            ico = SRC_CHEMICAL
             
         m_date = datetime.now().strftime("%d.%m.%Y")
         st.caption(f"📅 Дата фіксації (авто): {m_date}")
@@ -89,6 +116,16 @@ with col_gui:
         if st.button("Нанести точку на карту", type="primary"):
             st.session_state.rkhb_points.append({"lat": m_lat, "lng": m_lon, "label": lbl, "date": m_date, "icon": ico})
             st.rerun()
+            
+        # 🔄 КНОПКА ОЧИЩЕННЯ ПЕРЕНЕСЕНА СЮДИ (ОДРАЗУ ПІД НАРАХУВАННЯ)
+        st.markdown('<div class="clear-btn">', unsafe_allow_html=True)
+        if st.button("🗑️ Очистити ВСІ точки з карти"):
+            st.session_state.rkhb_points = []
+            st.session_state.captured_lat = 50.4500
+            st.session_state.captured_lng = 30.5200
+            st.query_params.clear()
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.divider()
     
@@ -98,7 +135,7 @@ with col_gui:
     if file:
         try:
             df_csv = pd.read_csv(file)
-            st.dataframe(df_csv.head(3), use_container_width=True) # Коротке прев'ю
+            st.dataframe(df_csv.head(3), use_container_width=True)
             
             st.markdown('<div class="import-btn">', unsafe_allow_html=True)
             if st.button("📥 Додати точки на карту з таблиці"):
@@ -107,7 +144,7 @@ with col_gui:
                 
                 lat_col = next((c for c in df_csv.columns if c in ['lat', 'latitude', 'широта']), None)
                 lng_col = next((c for c in df_csv.columns if c in ['lng', 'lon', 'longitude', 'довгота']), None)
-                lbl_col = next((c for c in df_csv.columns if c in ['label', 'text', 'напис', 'показник']), None)
+                lbl_col = next((c for c in df_csv.columns if c in ['label', 'text', 'напис', 'показник', 'дані', 'данні']), None)
                 dat_col = next((c for c in df_csv.columns if c in ['date', 'дата']), None)
                 ico_col = next((c for c in df_csv.columns if c in ['icon', 'іконка', 'знак']), None)
                 
@@ -119,6 +156,7 @@ with col_gui:
                         real_dat_name = orig_cols[list(df_csv.columns).index(dat_col)] if dat_col else None
                         real_ico_name = orig_cols[list(df_csv.columns).index(ico_col)] if ico_col else None
                         
+                        # 📝 ВИПРАВЛЕНО: Беремо реальні дані з таблиці у чисельник
                         label_text = str(row[real_lbl_name]) if real_lbl_name else "Точка розвідки"
                         date_text = str(row[real_dat_name]) if real_dat_name else datetime.now().strftime("%d.%m.%Y")
                         
@@ -126,28 +164,21 @@ with col_gui:
                             icon_url = str(row[real_ico_name])
                         else:
                             if "мг/" in label_text or "ppm" in label_text or "іприт" in label_text.lower():
-                                icon_url = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"
+                                icon_url = SRC_CHEMICAL
                             else:
-                                icon_url = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"
+                                icon_url = SRC_RADIATION
 
                         st.session_state.rkhb_points.append({
                             "lat": float(row[real_lat_name]), "lng": float(row[real_lng_name]),
                             "label": label_text, "date": date_text, "icon": icon_url
                         })
-                    st.success(f"Успішно нанесено {len(df_csv)} точок!")
+                    st.success(f"Успішно нанесено {len(df_csv)} точок з вашими даними!")
                     st.rerun()
                 else:
                     st.error("Помилка! У файлі відсутні колонки координат.")
             st.markdown('</div>', unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Помилка читання CSV: {str(e)}")
-
-    if st.button("🗑️ Очистити ВСІ точки"):
-        st.session_state.rkhb_points = []
-        st.session_state.captured_lat = 50.4500
-        st.session_state.captured_lng = 30.5200
-        st.query_params.clear()
-        st.rerun()
 
     if st.session_state.rkhb_points:
         df_view = pd.DataFrame(st.session_state.rkhb_points)
@@ -245,11 +276,11 @@ html_map_component = """
             <label>🧭 ОПЕРАТИВНІ ЕЛЕМЕНТИ:</label>
             <select id="signSelect">
                 <option value="">-- Оберіть умовний знак для встановлення кліком --</option>
-                <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg">Точка радіоактивного забруднення</option>
-                <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg">Точка хімічного забруднення</option>
-                <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_biological.svg">Точка біологічного зараження</option>
-                <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/nuclear_blast.svg">Епіцентр ядерного вибуху</option>
-                <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/cbrn_post.svg">Пост спостереження РХБ</option>
+                <option value="TEMP_RAD">Точка радіоактивного забруднення</option>
+                <option value="TEMP_CHEM">Точка хімічного забруднення</option>
+                <option value="TEMP_BIO">Точка біологічного зараження</option>
+                <option value="TEMP_NUCL">Епіцентр ядерного вибуху</option>
+                <option value="TEMP_POST">Пост спостереження РХБ</option>
             </select>
             <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">📝 Додати Текст</button>
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">📐 Еліпс AEGL</button>
@@ -270,6 +301,13 @@ html_map_component = """
     </div>
 
 <script>
+    // Динамічні лінки на знаки, згенеровані Python (з підтримкою вашої локальної папки)
+    var icoRad = "SRC_RADIATION";
+    var icoChem = "SRC_CHEMICAL";
+    var icoBio = "SRC_BIOLOGICAL";
+    var icoNucl = "SRC_NUCLEAR";
+    var icoPost = "SRC_POST";
+
     var map = L.map('map', { zoomControl: true }).setView([48.3, 31.1], 6);
     
     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -280,14 +318,11 @@ html_map_component = """
         attribution: '© Google'
     });
 
-    // СТАНДАРТНІ КНОПКИ ДЛЯ КОРИГУВАННЯ, ПЕРЕТЯГУВАННЯ ТА ВИДАЛЕННЯ ФІГУР
     map.pm.addControls({
         position: 'topleft',
         drawMarker: false, drawCircleMarker: false, drawPolyline: true,
         drawRectangle: true, drawPolygon: true, drawCircle: true,
-        editMode: true,    // Кнопка редагування геометрії фігур
-        dragMode: true,    // Кнопка перетягування фігур
-        removalMode: true  // Кнопка видалення обраних фігур
+        editMode: true, dragMode: true, removalMode: true
     });
     
     map.pm.setGlobalOptions({
@@ -332,7 +367,15 @@ html_map_component = """
     }
 
     document.getElementById('signSelect').onchange = function(e) {
-        activeIcon = e.target.value; textMode = false; ellipseMode = false;
+        var val = e.target.value;
+        if(val === "TEMP_RAD") activeIcon = icoRad;
+        else if(val === "TEMP_CHEM") activeIcon = icoChem;
+        else if(val === "TEMP_BIO") activeIcon = icoBio;
+        else if(val === "TEMP_NUCL") activeIcon = icoNucl;
+        else if(val === "TEMP_POST") activeIcon = icoPost;
+        else activeIcon = val;
+        
+        textMode = false; ellipseMode = false;
     };
     document.getElementById('textBtn').onclick = function() {
         textMode = true; ellipseMode = false; activeIcon = ""; document.getElementById('signSelect').value = "";
@@ -345,7 +388,6 @@ html_map_component = """
     };
 
     map.on('click', function(e) {
-        // Якщо інструменти вимкнені — працює передача координат кліку
         if (!activeIcon && !textMode && !ellipseMode) {
             var lat = e.latlng.lat;
             var lng = e.latlng.lng;
@@ -442,5 +484,12 @@ html_map_component = """
 # 4. РЕНДЕРИНГ КОМПОНЕНТА КАРТИ В STREAMLIT
 # ==========================================
 with col_map:
+    # Динамічна заміна посилань на іконки у JS-шаблоні перед відправкою на рендеринг
     final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
+    final_html = final_html.replace("SRC_RADIATION", SRC_RADIATION)
+    final_html = final_html.replace("SRC_CHEMICAL", SRC_CHEMICAL)
+    final_html = final_html.replace("SRC_BIOLOGICAL", SRC_BIOLOGICAL)
+    final_html = final_html.replace("SRC_NUCLEAR", SRC_NUCLEAR)
+    final_html = final_html.replace("SRC_POST", SRC_POST)
+    
     components.html(final_html, height=720, scrolling=False)
