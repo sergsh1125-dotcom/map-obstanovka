@@ -24,7 +24,6 @@ st.markdown("""
     padding: 12px; border-radius: 6px; text-align: center;
     border: 2px solid #FFD600; font-weight: bold; font-size: 16px; margin-bottom: 15px;
 }
-/* Стиль для червоної кнопки очищення, піднятої вгору */
 .clear-btn button {
     background-color: #ffebee !important; color: #c62828 !important;
     border: 1px solid #ef9a9a !important; margin-top: 10px; height: 2.5em;
@@ -39,29 +38,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 📂 ПІДГОТОВКА ЛОКАЛЬНОЇ ПАПКИ ДЛЯ ВЛАСНИХ УМОВНИХ ЗНАКІВ
-# Ви можете створити папку assets/svg/ поруч з app.py і кидати туди знаки.
+# 📂 СТРУКТУРА ЛОКАЛЬНИХ УМОВНИХ ЗНАКІВ
 LOCAL_SVG_DIR = "assets/svg"
 if not os.path.exists(LOCAL_SVG_DIR):
     os.makedirs(LOCAL_SVG_DIR)
 
-# Функція для генерації правильного шляху до іконки (пріоритет локальній папці)
 def get_icon_url(filename, backup_url):
     local_path = os.path.join(LOCAL_SVG_DIR, filename)
     if os.path.exists(local_path):
-        # Streamlit Cloud монтує статичні файли проєкту за цим внутрішнім шляхом
         return f"/app/static/{LOCAL_SVG_DIR}/{filename}"
     return backup_url
 
-# Визначаємо актуальні шляхи до знаків
 SRC_RADIATION = get_icon_url("detect_radiation.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg")
 SRC_CHEMICAL = get_icon_url("detect_chemical.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg")
 SRC_BIOLOGICAL = get_icon_url("detect_biological.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_biological.svg")
 SRC_NUCLEAR = get_icon_url("nuclear_blast.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/nuclear_blast.svg")
 SRC_POST = get_icon_url("cbrn_post.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/cbrn_post.svg")
 
-
-# Ініціалізація бази точок розвідки
+# Ініціалізація сесії точок розвідки
 if "rkhb_points" not in st.session_state:
     st.session_state.rkhb_points = [
         {"lat": 50.45, "lng": 30.52, "label": "Іприт - 0.05 мг/м³", "date": "17.06.2026", "icon": SRC_CHEMICAL},
@@ -81,7 +75,6 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
         pass
 
 st.header("☢️ МОДУЛЬ 1: ФАКТИЧНА РХБ ОБСТАНОВКА")
-
 col_map, col_gui = st.columns([3, 1])
 
 # ==========================================
@@ -89,12 +82,10 @@ col_map, col_gui = st.columns([3, 1])
 # ==========================================
 with col_gui:
     st.subheader("⚙️ УПРАВЛІННЯ ДАНИМИ")
-    
     st.markdown(f"<div class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
     
     with st.expander("➕ Параметри точки вимірювання", expanded=True):
         m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"])
-        
         m_lat = st.number_input("Широта (Lat)", value=st.session_state.captured_lat, format="%.5f", key=f"lat_{st.session_state.captured_lat}")
         m_lon = st.number_input("Довгота (Lon)", value=st.session_state.captured_lng, format="%.5f", key=f"lng_{st.session_state.captured_lng}")
         
@@ -117,7 +108,6 @@ with col_gui:
             st.session_state.rkhb_points.append({"lat": m_lat, "lng": m_lon, "label": lbl, "date": m_date, "icon": ico})
             st.rerun()
             
-        # 🔄 КНОПКА ОЧИЩЕННЯ ПЕРЕНЕСЕНА СЮДИ (ОДРАЗУ ПІД НАРАХУВАННЯ)
         st.markdown('<div class="clear-btn">', unsafe_allow_html=True)
         if st.button("🗑️ Очистити ВСІ точки з карти"):
             st.session_state.rkhb_points = []
@@ -129,7 +119,6 @@ with col_gui:
 
     st.divider()
     
-    # ОКРЕМИЙ БЛОК ДЛЯ ЗАВАНТАЖЕННЯ ТА НАНЕСЕННЯ ТОЧОК З CSV
     st.write("📊 **Імпорт бази даних розвідки**")
     file = st.file_uploader("Виберіть CSV файл:", type=["csv"], label_visibility="collapsed")
     if file:
@@ -144,7 +133,7 @@ with col_gui:
                 
                 lat_col = next((c for c in df_csv.columns if c in ['lat', 'latitude', 'широта']), None)
                 lng_col = next((c for c in df_csv.columns if c in ['lng', 'lon', 'longitude', 'довгота']), None)
-                lbl_col = next((c for c in df_csv.columns if c in ['label', 'text', 'напис', 'показник', 'дані', 'данні']), None)
+                lbl_col = next((c for c in df_csv.columns if c in ['label', 'text', 'напис', 'показник', 'дані', 'данні', 'значення', 'концентрація', 'рівень']), None)
                 dat_col = next((c for c in df_csv.columns if c in ['date', 'дата']), None)
                 ico_col = next((c for c in df_csv.columns if c in ['icon', 'іконка', 'знак']), None)
                 
@@ -156,14 +145,13 @@ with col_gui:
                         real_dat_name = orig_cols[list(df_csv.columns).index(dat_col)] if dat_col else None
                         real_ico_name = orig_cols[list(df_csv.columns).index(ico_col)] if ico_col else None
                         
-                        # 📝 ВИПРАВЛЕНО: Беремо реальні дані з таблиці у чисельник
-                        label_text = str(row[real_lbl_name]) if real_lbl_name else "Точка розвідки"
-                        date_text = str(row[real_dat_name]) if real_dat_name else datetime.now().strftime("%d.%m.%Y")
+                        label_text = str(row[real_lbl_name]).strip() if (real_lbl_name and pd.notna(row[real_lbl_name])) else "Точка розвідки"
+                        date_text = str(row[real_dat_name]).strip() if (real_dat_name and pd.notna(row[real_dat_name])) else datetime.now().strftime("%d.%m.%Y")
                         
                         if real_ico_name and pd.notna(row[real_ico_name]):
                             icon_url = str(row[real_ico_name])
                         else:
-                            if "мг/" in label_text or "ppm" in label_text or "іприт" in label_text.lower():
+                            if "мг/" in label_text or "ppm" in label_text or "іприт" in label_text.lower() or "хім" in label_text.lower():
                                 icon_url = SRC_CHEMICAL
                             else:
                                 icon_url = SRC_RADIATION
@@ -172,10 +160,10 @@ with col_gui:
                             "lat": float(row[real_lat_name]), "lng": float(row[real_lng_name]),
                             "label": label_text, "date": date_text, "icon": icon_url
                         })
-                    st.success(f"Успішно нанесено {len(df_csv)} точок з вашими даними!")
+                    st.success(f"Успішно нанесено {len(df_csv)} точок!")
                     st.rerun()
                 else:
-                    st.error("Помилка! У файлі відсутні колонки координат.")
+                    st.error("Помилка! Перевірте наявність колонок координат у таблиці.")
             st.markdown('</div>', unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Помилка читання CSV: {str(e)}")
@@ -185,12 +173,11 @@ with col_gui:
         st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=110)
         st.download_button("💾 Експорт бази в CSV", df_view.to_csv(index=False), "rkhb_data.csv", "text/csv")
 
-
-# Підготовка JSON-даних для передачі в карту
+# Конвертація точок в чистий JSON без подвійних лапок
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
 # ==========================================
-# 3. АВТОНОМНИЙ HTML/JS КОД КАРТИ LEAFLET
+# 3. HTML/JS КОД КАРТИ LEAFLET
 # ==========================================
 html_map_component = """
 <!DOCTYPE html>
@@ -227,7 +214,6 @@ html_map_component = """
             border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 5px;
         }
         .panel-btn:hover { background: #d4d4d4; }
-        
         .btn-stop { background: #ffcdd2 !important; color: #b71c1c !important; border-color: #e57373 !important; }
         .btn-stop:hover { background: #ef9a9a !important; }
 
@@ -245,19 +231,13 @@ html_map_component = """
             color: #fff !important; font-weight: bold; font-size: 11px; padding: 3px 6px; border-radius: 4px;
         }
         
-        .leaflet-div-icon {
-            background: transparent !important; border: none !important; box-shadow: none !important;
-        }
+        .leaflet-div-icon { background: transparent !important; border: none !important; box-shadow: none !important; }
         .cbrn-military-lbl {
             font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; color: #000 !important;
             text-align: center; display: inline-block; white-space: nowrap; line-height: 1.3; background: transparent !important;
         }
-        .cbrn-line-divider {
-            border-bottom: 2px solid #000 !important; width: 100%; display: block; margin: 2px 0;
-        }
-        .cbrn-date-sub {
-            font-size: 11px; font-weight: bold; color: #000 !important; display: block;
-        }
+        .cbrn-line-divider { border-bottom: 2px solid #000 !important; width: 100%; display: block; margin: 2px 0; }
+        .cbrn-date-sub { font-size: 11px; font-weight: bold; color: #000 !important; display: block; }
     </style>
 </head>
 <body>
@@ -294,37 +274,23 @@ html_map_component = """
             <input type="number" id="wSpeedInput" placeholder="м/с" min="0" value="0" step="0.1" style="width:90px;">
             
             <button class="panel-btn" style="background: #fff59d; border-color:#fbc02d;" id="applyMeteoBtn">🌀 Застосувати</button>
-            
             <button class="panel-btn" style="background: #c8e6c9; border-color:#388e3c; margin-left: 20px;" id="pngBtn">🖼️ Зберегти PNG</button>
             <button class="panel-btn" style="background: #ffcdd2; border-color:#d32f2f;" id="printBtn">🖨️ Зберегти PDF / Друк</button>
         </div>
     </div>
 
 <script>
-    // Динамічні лінки на знаки, згенеровані Python (з підтримкою вашої локальної папки)
-    var icoRad = "SRC_RADIATION";
-    var icoChem = "SRC_CHEMICAL";
-    var icoBio = "SRC_BIOLOGICAL";
-    var icoNucl = "SRC_NUCLEAR";
-    var icoPost = "SRC_POST";
+    var icoRad = "SRC_RADIATION"; var icoChem = "SRC_CHEMICAL"; var icoBio = "SRC_BIOLOGICAL"; var icoNucl = "SRC_NUCLEAR"; var icoPost = "SRC_POST";
 
     var map = L.map('map', { zoomControl: true }).setView([48.3, 31.1], 6);
-    
-    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19, attribution: '© OpenStreetMap'
-    }).addTo(map);
-
-    var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-        attribution: '© Google'
-    });
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+    var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '© Google' });
 
     map.pm.addControls({
-        position: 'topleft',
-        drawMarker: false, drawCircleMarker: false, drawPolyline: true,
+        position: 'topleft', drawMarker: false, drawCircleMarker: false, drawPolyline: true,
         drawRectangle: true, drawPolygon: true, drawCircle: true,
         editMode: true, dragMode: true, removalMode: true
     });
-    
     map.pm.setGlobalOptions({
         measurements: { display: true, radius: true, totalLength: true, segmentLength: true },
         pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.4, weight: 2 }
@@ -335,6 +301,7 @@ html_map_component = """
     var dateLayers = {}; 
     var layerControl = L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
 
+    // Зчитування масиву точок (і ручних, і з таблиці CSV)
     var inputPoints = DATA_FROM_PYTHON;
     
     if(Array.isArray(inputPoints)) {
@@ -355,6 +322,9 @@ html_map_component = """
                             "</div>";
                             
             marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 14], className: 'leaflet-div-icon' });
+            
+            // Інтеграція під систему розумного видалення кліком
+            marker.on('click', function(e) { handleLayerClick(e, marker); });
             marker.addTo(dateLayers[dateStr]);
         });
     }
@@ -374,42 +344,43 @@ html_map_component = """
         else if(val === "TEMP_NUCL") activeIcon = icoNucl;
         else if(val === "TEMP_POST") activeIcon = icoPost;
         else activeIcon = val;
-        
         textMode = false; ellipseMode = false;
     };
-    document.getElementById('textBtn').onclick = function() {
-        textMode = true; ellipseMode = false; activeIcon = ""; document.getElementById('signSelect').value = "";
-    };
-    document.getElementById('ellipseBtn').onclick = function() {
-        ellipseMode = true; textMode = false; activeIcon = ""; document.getElementById('signSelect').value = "";
-    };
-    document.getElementById('stopBtn').onclick = function() {
-        clearModes();
-    };
+    document.getElementById('textBtn').onclick = function() { textMode = true; ellipseMode = false; activeIcon = ""; document.getElementById('signSelect').value = ""; };
+    document.getElementById('ellipseBtn').onclick = function() { ellipseMode = true; textMode = false; activeIcon = ""; document.getElementById('signSelect').value = ""; };
+    document.getElementById('stopBtn').onclick = function() { clearModes(); };
+
+    // РОЗУМНЕ ВИДАЛЕННЯ: якщо активовано інструмент "Смітник" ліворуч, об'єкт стирається по кліку
+    function handleLayerClick(e, layer) {
+        if (map.pm.globalRemovalModeEnabled()) {
+            L.DomEvent.stopPropagation(e);
+            map.removeLayer(layer);
+        }
+    }
 
     map.on('click', function(e) {
         if (!activeIcon && !textMode && !ellipseMode) {
-            var lat = e.latlng.lat;
-            var lng = e.latlng.lng;
-            
+            if (map.pm.globalRemovalModeEnabled()) return;
+            var lat = e.latlng.lat; var lng = e.latlng.lng;
             var url = new URL(window.parent.location.href);
             url.searchParams.set('click_lat', lat.toFixed(5));
             url.searchParams.set('click_lng', lng.toFixed(5));
             window.parent.history.replaceState({}, '', url);
-            
             window.parent.postMessage({type: "streamlit:set_query_params", params: {click_lat: lat.toFixed(5), click_lng: lng.toFixed(5)}}, "*");
             return;
         }
 
         if (activeIcon) {
-            L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(map);
+            var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(map);
+            m.on('click', function(ev) { handleLayerClick(ev, m); });
         }
         if (textMode) {
             var txt = prompt("Введіть оперативно-тактичний підпис:");
             if (txt) {
-                L.marker(e.latlng, {
+                var tm = L.marker(e.latlng, {
                     icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px; background:transparent;'>️" + txt + "</span>" })
                 }).addTo(map);
+                tm.on('click', function(ev) { handleLayerClick(ev, tm); });
             }
         }
         if (ellipseMode) {
@@ -421,34 +392,28 @@ html_map_component = """
     });
 
     function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {
-        var angles = [1, 0.6, 0.3];
-        var colors = ["#ffcc00", "#ff9900", "#cc0000"];
-        var opacities = [0.25, 0.4, 0.6];
+        var angles = [1, 0.6, 0.3]; var colors = ["#ffcc00", "#ff9900", "#cc0000"]; var opacities = [0.25, 0.4, 0.6];
         var windRad = (deg + 180) * Math.PI / 180;
 
         angles.forEach(function(scale, idx) {
-            var curRx = rx * scale; var curRy = ry * scale;
-            var points = [];
+            var curRx = rx * scale; var curRy = ry * scale; var points = [];
             for (var i = 0; i <= 64; i++) {
                 var angle = (i / 64) * 2 * Math.PI;
-                var x = curRy * Math.cos(angle);
-                var y = curRx * Math.sin(angle);
+                var x = curRy * Math.cos(angle); var y = curRx * Math.sin(angle);
                 var rotX = x * Math.cos(windRad) + (y + curRx) * Math.sin(windRad);
                 var rotY = -x * Math.sin(windRad) + (y + curRx) * Math.cos(windRad);
-                var latOffset = rotY / 111320;
-                var lngOffset = rotX / (111320 * Math.cos(centerLat * Math.PI / 180));
+                var latOffset = rotY / 111320; var lngOffset = rotX / (111320 * Math.cos(centerLat * Math.PI / 180));
                 points.push([centerLat + latOffset, centerLng + lngOffset]);
             }
-            L.polygon(points, { color: 'black', weight: 1, fillColor: colors[idx], fillOpacity: opacities[idx] }).addTo(map);
+            var poly = L.polygon(points, { color: 'black', weight: 1, fillColor: colors[idx], fillOpacity: opacities[idx] }).addTo(map);
+            poly.on('click', function(ev) { handleLayerClick(ev, poly); });
         });
     }
 
     document.getElementById('applyMeteoBtn').onclick = function() {
-        var deg = parseFloat(document.getElementById('wDegInput').value) || 0;
-        var speed = parseFloat(document.getElementById('wSpeedInput').value) || 0;
+        var deg = parseFloat(document.getElementById('wDegInput').value) || 0; var speed = parseFloat(document.getElementById('wSpeedInput').value) || 0;
         document.getElementById('arrow').style.transform = "rotate(" + ((deg + 180) % 360) + "deg)";
-        document.getElementById('degInfo').innerText = deg + "°";
-        document.getElementById('speedInfo').innerText = speed + " м/с";
+        document.getElementById('degInfo').innerText = deg + "°"; document.getElementById('speedInfo').innerText = speed + " м/с";
     };
 
     map.on('pm:create', function(e) {
@@ -457,34 +422,27 @@ html_map_component = """
             var txt = "Радіус: " + (radius >= 1000 ? (radius/1000).toFixed(2) + " км" : Math.round(radius) + " м");
             e.layer.bindTooltip(txt, { permanent: true, direction: 'center', className: 'size-tooltip' }).openTooltip();
         }
+        e.layer.on('click', function(ev) { handleLayerClick(ev, e.layer); });
     });
 
     document.getElementById('pngBtn').onclick = function() {
-        var container = document.getElementById('mapContainer');
-        var controls = document.querySelector('.leaflet-control-container');
+        var container = document.getElementById('mapContainer'); var controls = document.querySelector('.leaflet-control-container');
         controls.style.display = 'none';
         html2canvas(container, { useCORS: true, allowTaint: true }).then(function(canvas) {
-            var link = document.createElement('a');
-            link.download = 'CBRN_Map_Export.png';
-            link.href = canvas.toDataURL();
-            link.click();
+            var link = document.createElement('a'); link.download = 'CBRN_Map_Export.png'; link.href = canvas.toDataURL(); link.click();
             controls.style.display = 'block';
         });
     };
-
-    document.getElementById('printBtn').onclick = function() {
-        window.print();
-    };
+    document.getElementById('printBtn').onclick = function() { window.print(); };
 </script>
 </body>
 </html>
 """
 
 # ==========================================
-# 4. РЕНДЕРИНГ КОМПОНЕНТА КАРТИ В STREAMLIT
+# 4. РЕНДЕРИНГ КАРТЫ В STREAMLIT
 # ==========================================
 with col_map:
-    # Динамічна заміна посилань на іконки у JS-шаблоні перед відправкою на рендеринг
     final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
     final_html = final_html.replace("SRC_RADIATION", SRC_RADIATION)
     final_html = final_html.replace("SRC_CHEMICAL", SRC_CHEMICAL)
