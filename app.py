@@ -89,7 +89,7 @@ with col_gui:
 # Передаємо поточну базу точок зі Streamlit всередину JavaScript через JSON
 points_json = json.dumps(st.session_state.rkhb_points)
 
-html_map_component = f"""
+html_map_component = """
 <!DOCTYPE html>
 <html>
 <head>
