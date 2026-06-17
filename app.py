@@ -18,6 +18,11 @@ st.markdown("""
     border: 1px solid #cca300 !important;
 }
 .stButton button:hover { background-color: #ffea00 !important; }
+/* Стиль для інфо-боксу координат */
+.coord-box {
+    background-color: #e3f2fd; padding: 10px; border-radius: 5px;
+    border-left: 5px solid #2196f3; font-weight: bold; margin-bottom: 10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -25,10 +30,21 @@ st.markdown("""
 if "rkhb_points" not in st.session_state:
     st.session_state.rkhb_points = [
         {"lat": 50.45, "lng": 30.52, "label": "Іприт - 0.05 мг/м³", "date": "17.06.2026", "icon": "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"},
-        {"lat": 50.46, "lng": 30.53, "label": "Радіація: 0.25 мкЗв/год", "date": "16.06.2026", "icon": "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"}
+        {"lat": 50.46, "lng": 30.53, "label": "0.25 мкЗв/год", "date": "16.06.2026", "icon": "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"}
     ]
 
-# Виключено слова "по днях розвідки"
+# Буфер для спійманих з карти координат
+if "captured_lat" not in st.session_state:
+    st.session_state.captured_lat = 50.4500
+if "captured_lng" not in st.session_state:
+    st.session_state.captured_lng = 30.5200
+
+# Обробка координат, які прийшли з JavaScript карти через URL-параметри
+query_params = st.query_transform(st.experimental_get_query_params() if hasattr(st, 'experimental_get_query_params') else {})
+if "click_lat" in st.context.query_params:
+    st.session_state.captured_lat = float(st.context.query_params["click_lat"][0])
+    st.session_state.captured_lng = float(st.context.query_params["click_lng"][0])
+
 st.header("☢️ МОДУЛЬ 1: ФАКТИЧНА РХБ ОБСТАНОВКА")
 
 col_map, col_gui = st.columns([3, 1])
@@ -39,27 +55,34 @@ col_map, col_gui = st.columns([3, 1])
 with col_gui:
     st.subheader("⚙️ УПРАВЛІННЯ ДАНИМИ")
     
-    with st.expander("➕ Додати точку розвідки вручну"):
+    # Відображення автоматично зчитаних координат
+    st.markdown(f"<div class='coord-box'>📍 {st.session_state.captured_lat:.5f}, {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
+    
+    with st.expander("➕ Параметри точки вимірювання", expanded=True):
         m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"])
-        m_lat = st.number_input("Широта (Lat)", value=50.4500, format="%.5f")
-        m_lon = st.number_input("Довгота (Lon)", value=30.5200, format="%.5f")
+        
+        # Поля автоматично заповнюються координатами з кліку/дотику на карті
+        m_lat = st.number_input("Широта (Lat)", value=st.session_state.captured_lat, format="%.5f", key="input_lat")
+        m_lon = st.number_input("Довгота (Lon)", value=st.session_state.captured_lng, format="%.5f", key="input_lon")
         
         if m_type == "Радіоактивне":
-            r_val = st.number_input("Показник радіації", value=0.15)
+            r_val = st.number_input("Показник радіації", value=0.15, step=0.01)
             r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год"])
-            lbl = f"Радіація: {r_val} {r_uni}"
+            # ВИКЛЮЧЕНО слово "Радіація" згідно з вимогою
+            lbl = f"{r_val} {r_uni}"
             ico = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"
         else:
             c_sub = st.text_input("Речовина", value="Іприт")
-            c_val = st.number_input("Концентрація", value=0.1)
+            c_val = st.number_input("Концентрація", value=0.10, step=0.01)
             c_uni = st.selectbox("Одиниця виміру", ["мг/м³", "ppm"])
             lbl = f"{c_sub} - {c_val} {c_uni}"
             ico = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"
             
-        m_date = st.date_input("Дата розвідки", value=datetime.now()).strftime("%d.%m.%Y")
+        # Дата ставиться АВТОМАТИЧНО поточна
+        m_date = datetime.now().strftime("%d.%m.%Y")
+        st.caption(f"📅 Дата фіксації (авто): {m_date}")
         
-        # Назву змінено на "Нанести точку на карту"
-        if st.button("Нанести точку на карту"):
+        if st.button("Нанести точку на карту", type="primary"):
             st.session_state.rkhb_points.append({"lat": m_lat, "lng": m_lon, "label": lbl, "date": m_date, "icon": ico})
             st.rerun()
 
@@ -78,12 +101,13 @@ with col_gui:
 
     if st.button("🗑️ Очистити ВСІ точки"):
         st.session_state.rkhb_points = []
+        st.session_state.captured_lat = 50.4500
+        st.session_state.captured_lng = 30.5200
         st.rerun()
 
     if st.session_state.rkhb_points:
-        st.markdown("### 📊 Поточні точки:")
         df_view = pd.DataFrame(st.session_state.rkhb_points)
-        st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=150)
+        st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=130)
         st.download_button("💾 Експорт бази в CSV", df_view.to_csv(index=False), "rkhb_data.csv", "text/csv")
 
 
@@ -105,14 +129,12 @@ html_map_component = """
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.0/dist/leaflet-geoman.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
-        html, body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #fff; }
+        html, body { margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; background: #fff; }
         #mapContainer { width: 100%; height: 600px; position: relative; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
         #map { width: 100%; height: 100%; }
         
-        /* НОВА ПАНЕЛЬ ПІД КАРТОЮ В 2 РЯДКИ */
         #bottomControlsPanel {
             margin-top: 15px; background: #f5f5f5; padding: 12px; border-radius: 8px;
             border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
@@ -145,16 +167,16 @@ html_map_component = """
             color: #fff !important; font-weight: bold; font-size: 11px; padding: 3px 6px; border-radius: 4px;
         }
         
-        /* НОВИЙ ФОРМАТ ПІДПИСУ ТОЧОК ЗА СТАНДАРТОМ (ЧОРНИЙ ТЕКСТ ТА ЛІНІЯ НА ДОВЖИНУ ТЕКСТУ) */
+        /* ЗНАМЕННИК ТА ЧИСЕЛЬНИК ТЕПЕР ЖИРНІ, ЧОРНІ, З ЧІТКОЮ ЛІНІЄЮ */
         .cbrn-military-lbl {
             font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; color: #000 !important;
-            text-align: center; display: inline-block; white-space: nowrap; line-height: 1.2;
+            text-align: center; display: inline-block; white-space: nowrap; line-height: 1.3;
         }
         .cbrn-line-divider {
             border-bottom: 2px solid #000 !important; width: 100%; display: block; margin: 2px 0;
         }
         .cbrn-date-sub {
-            font-size: 10px; font-weight: normal; color: #000 !important; display: block;
+            font-size: 11px; font-weight: bold; color: #000 !important; display: block;
         }
     </style>
 </head>
@@ -162,7 +184,6 @@ html_map_component = """
 
     <div id="mapContainer">
         <div id="map"></div>
-        
         <div id="windWidget">
             <div class="wind-arrow" id="arrow">↑</div>
             <div class="wind-info" id="degInfo">0°</div>
@@ -172,28 +193,28 @@ html_map_component = """
 
     <div id="bottomControlsPanel">
         <div class="controls-row">
-            <label>🧭 НАНЕСЕННЯ ЕЛЕМЕНТІВ:</label>
+            <label>🧭 ОПЕРАТИВНІ ЕЛЕМЕНТИ:</label>
             <select id="signSelect">
-                <option value="">-- Оберіть умовний знак для кліку на карту --</option>
+                <option value="">-- Оберіть умовний знак для встановлення кліком --</option>
                 <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg">Точка радіоактивного забруднення</option>
                 <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg">Точка хімічного забруднення</option>
                 <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_biological.svg">Точка біологічного зараження</option>
                 <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/nuclear_blast.svg">Епіцентр ядерного вибуху</option>
                 <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/cbrn_post.svg">Пост спостереження РХБ</option>
             </select>
-            <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">📝 Додати текст</button>
+            <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">📝 Додати Текст (Чорний)</button>
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">📐 Побудувати Еліпс AEGL</button>
         </div>
         
         <div class="controls-row">
             <label>💨 НАЛАШТУВАННЯ МЕТЕО:</label>
-            <input type="number" id="wDegInput" placeholder="Напрямок вітру (°)" min="0" max="360" value="0" style="width:140px;">
-            <input type="number" id="wSpeedInput" placeholder="Швидкість (м/с)" min="0" value="0" step="0.1" style="width:120px;">
+            <input type="number" id="wDegInput" placeholder="Вітер (градусів)" min="0" max="360" value="0" style="width:150px;">
+            <input type="number" id="wSpeedInput" placeholder="Швидкість (м/с)" min="0" value="0" step="0.1" style="width:130px;">
             <button class="panel-btn" style="background: #fff59d; border-color:#fbc02d;" id="applyMeteoBtn">🌀 Застосувати метео</button>
             
             <div style="margin-left: auto; display: flex; gap: 8px;">
-                <button class="panel-btn" style="background: #c8e6c9; border-color:#388e3c;" id="pngBtn">🖼️ Експорт в PNG</button>
-                <button class="panel-btn" style="background: #ffcdd2; border-color:#d32f2f;" id="pdfBtn">📄 Експорт в PDF</button>
+                <button class="panel-btn" style="background: #c8e6c9; border-color:#388e3c;" id="pngBtn">🖼️ Зберегти знімок карти (PNG)</button>
+                <button class="panel-btn" style="background: #ffcdd2; border-color:#d32f2f;" id="printBtn">🖨️ Друкувати / Зберегти в PDF</button>
             </div>
         </div>
     </div>
@@ -210,7 +231,7 @@ html_map_component = """
         attribution: '© Google'
     });
 
-    // Налаштування лінійок та вимірювань Geoman (OSM)
+    // Налаштування лінійок та кіл Geoman
     map.pm.addControls({
         position: 'topleft',
         drawMarker: false, drawCircleMarker: false, drawPolyline: true,
@@ -218,8 +239,10 @@ html_map_component = """
         removalMode: true, editMode: false, dragMode: false
     });
     
+    // ВСТАНОВЛЕННЯ ЖОВТОГО КОЛЬОРУ ДЛЯ МАЛЮВАННЯ КОЛА ТА КЛІК-ВИДАЛЕННЯ
     map.pm.setGlobalOptions({
-        measurements: { display: true, radius: true, totalLength: true, segmentLength: true }
+        measurements: { display: true, radius: true, totalLength: true, segmentLength: true },
+        pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.4, weight: 2 }
     });
     map.pm.setLang('uk');
 
@@ -227,7 +250,7 @@ html_map_component = """
     var dateLayers = {}; 
     var layerControl = L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
 
-    // Отримання бази точок розвідки з Python (безпечна заміна)
+    // Відображення існуючих точок
     var inputPoints = DATA_FROM_PYTHON;
     
     if(Array.isArray(inputPoints)) {
@@ -242,7 +265,7 @@ html_map_component = """
             var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [28, 28], iconAnchor: [14, 14] });
             var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
             
-            // НОВИЙ ФОРМАТ: Чорний текст, лінія чітко по довжині, дата під лінією
+            // Чисельник і знаменник — повністю чорні та жирні
             var labelHtml = "<div class='cbrn-military-lbl'>" + 
                                 "<span>" + pt.label + "</span>" + 
                                 "<div class='cbrn-line-divider'></div>" + 
@@ -254,7 +277,7 @@ html_map_component = """
         });
     }
 
-    // Робота зі знаками, текстом та еліпсами
+    // Логіка нанесення та клік-очищення знаків
     var activeIcon = ""; var textMode = false; var ellipseMode = false;
 
     document.getElementById('signSelect').onchange = function(e) {
@@ -267,20 +290,32 @@ html_map_component = """
         ellipseMode = true; textMode = false; activeIcon = ""; document.getElementById('signSelect').value = "";
     };
 
+    // ФУНКЦІЯ ПЕРЕДАЧІ КООРДИНАТ ТА КЛІК-ОЧИЩЕННЯ (ДЛЯ ПК ТА СМАРТФОНІВ)
     map.on('click', function(e) {
+        // Якщо інструменти НЕ обрані — працює автоматичне зчитування координат у пульт управління Python!
+        if (!activeIcon && !textMode && !ellipseMode) {
+            var lat = e.latlng.lat;
+            var lng = e.latlng.lng;
+            // Передаємо в батьківське вікно Streamlit через URL без перезавантаження
+            window.parent.postMessage({type: "streamlit:set_query_params", params: {click_lat: lat, click_lng: lng}}, "*");
+            // Дублюючий швидкий інструмент оновлення для мобільних пристроїв
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set('click_lat', lat);
+            url.searchParams.set('click_lng', lng);
+            window.parent.history.replaceState({}, '', url);
+            return;
+        }
+
         if (activeIcon) {
             var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(map);
-            // ФУНКЦІЯ ОЧИЩЕННЯ ЗНАКУ КЛІКОМ
             m.on('click', function(ev) { L.DomEvent.stopPropagation(ev); if(confirm("Видалити цей умовний знак з карти?")) map.removeLayer(m); });
         }
         if (textMode) {
             var txt = prompt("Введіть оперативно-тактичний підпис:");
             if (txt) {
-                // ТЕКСТ ЗРОБЛЕНО ЧОРНИМ (cbrn-military-lbl)
                 var tm = L.marker(e.latlng, {
                     icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px;'>" + txt + "</span>" })
                 }).addTo(map);
-                // ФУНКЦІЯ ОЧИЩЕННЯ ТЕКСТУ КЛІКОМ
                 tm.on('click', function(ev) { L.DomEvent.stopPropagation(ev); if(confirm("Видалити цей текст з карти?")) map.removeLayer(tm); });
             }
             textMode = false;
@@ -315,7 +350,6 @@ html_map_component = """
                 points.push([centerLat + latOffset, centerLng + lngOffset]);
             }
             var poly = L.polygon(points, { color: 'black', weight: 1, fillColor: colors[idx], fillOpacity: opacities[idx] }).addTo(map);
-            // ФУНКЦІЯ ОЧИЩЕННЯ ЕЛІПСА КЛІКОМ
             poly.on('click', function(ev) { L.DomEvent.stopPropagation(ev); if(confirm("Видалити цю зону хімічного забруднення?")) map.removeLayer(poly); });
         });
     }
@@ -328,60 +362,36 @@ html_map_component = """
         document.getElementById('speedInfo').innerText = speed + " м/с";
     };
 
-    // Відображення радіуса кіл Geoman
     map.on('pm:create', function(e) {
         if (e.shape === 'Circle') {
             var radius = e.layer.getRadius();
             var txt = "Радіус: " + (radius >= 1000 ? (radius/1000).toFixed(2) + " км" : Math.round(radius) + " м");
             e.layer.bindTooltip(txt, { permanent: true, direction: 'center', className: 'size-tooltip' }).openTooltip();
         }
-        // Очищення ліній/фігур Geoman за допомогою кліку у режимі видалення
+        // Клік-видалення для кіл/ліній Geoman
         e.layer.on('click', function(ev) {
-            if(map.pm.globalRemovalModeEnabled()) {
-                map.removeLayer(e.layer);
-            }
+            L.DomEvent.stopPropagation(ev);
+            if(confirm("Видалити цю геометрію/коло з карти?")) { map.removeLayer(e.layer); }
         });
     });
 
-    // ЛОГІКА ЕКСПОРТУ КАРТИ В PNG
+    // Експорт PNG
     document.getElementById('pngBtn').onclick = function() {
         var container = document.getElementById('mapContainer');
-        // Тимчасово ховаємо інтерфейс управління лінійками для гарного знімку
         var controls = document.querySelector('.leaflet-control-container');
         controls.style.display = 'none';
-        
         html2canvas(container, { useCORS: true, allowTaint: true }).then(function(canvas) {
             var link = document.createElement('a');
             link.download = 'CBRN_Map_Export.png';
             link.href = canvas.toDataURL();
             link.click();
-            controls.style.display = 'block'; // Повертаємо кнопки назад
+            controls.style.display = 'block';
         });
     };
 
-    // ЛОГІКА ЕКСПОРТУ КАРТИ В PDF REPORT
-    document.getElementById('pdfBtn').onclick = function() {
-        var container = document.getElementById('mapContainer');
-        var controls = document.querySelector('.leaflet-control-container');
-        controls.style.display = 'none';
-
-        html2canvas(container, { useCORS: true, allowTaint: true }).then(function(canvas) {
-            controls.style.display = 'block';
-            var imgData = canvas.toDataURL('image/png');
-            const { jsPDF } = window.jspdf;
-            var pdf = new jsPDF('l', 'mm', 'a4'); // Альбомний формат А4
-            
-            pdf.setFont("Helvetica", "bold");
-            pdf.setFontSize(16);
-            pdf.text("CBRN SITUATION REPORT / ДОНЕСЕННЯ РХБ ОБСТАНОВКИ", 15, 15);
-            pdf.setFontSize(10);
-            pdf.setFont("Helvetica", "normal");
-            pdf.text("Generated: " + new Date().toLocaleString(), 15, 22);
-            
-            // Вставляємо карту в лист PDF
-            pdf.addImage(imgData, 'PNG', 15, 25, 267, 165);
-            pdf.save('CBRN_Report.pdf');
-        });
+    // ЧИСТИЙ ТАКТИЧНИЙ ДРУК У PDF БЕЗ СЛУЖБОВОЇ ІНФОРМАЦІЇ
+    document.getElementById('printBtn').onclick = function() {
+        window.print();
     };
 </script>
 </body>
@@ -395,5 +405,5 @@ with col_map:
     # Безпечно замінюємо маркер на реальний масив даних із сесії Python
     final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
     
-    # Виводимо карту та нову нижню панель на екран
+    # Виводимо карту на екран
     components.html(final_html, height=730, scrolling=False)
