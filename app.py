@@ -90,13 +90,42 @@ with col_gui:
     file = st.file_uploader("📥 Імпорт розвідки з CSV", type=["csv"])
     if file:
         df_csv = pd.read_csv(file)
-        for _, row in df_csv.iterrows():
-            st.session_state.rkhb_points.append({
-                "lat": float(row['lat']), "lng": float(row['lng']),
-                "label": str(row['label']), "date": str(row['date']), "icon": str(row['icon'])
-            })
-        st.success("Дані успішно імпортовано!")
-        st.rerun()
+        
+        # Переводимо назви стовпчиків у нижній регістр для легкого пошуку
+        df_csv.columns = [col.strip().lower() for col in df_csv.columns]
+        
+        # Автоматичний пошук потрібних стовпчиків за ключовими словами
+        lat_col = next((c for c in df_csv.columns if c in ['lat', 'latitude', 'широта']), None)
+        lng_col = next((c for c in df_csv.columns if c in ['lng', 'lon', 'longitude', 'довгота']), None)
+        lbl_col = next((c for c in df_csv.columns if c in ['label', 'text', 'напис', 'показник']), None)
+        dat_col = next((c for c in df_csv.columns if c in ['date', 'дата']), None)
+        ico_col = next((c for c in df_csv.columns if c in ['icon', 'іконка', 'знак']), None)
+        
+        if lat_col and lng_col:
+            for _, row in df_csv.iterrows():
+                # Визначаємо іконку за замовчуванням, якщо стовпчика немає або він пустий
+                default_icon = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"
+                if ico_col and pd.notna(row[ico_col]):
+                    icon_url = str(row[ico_col])
+                else:
+                    # Якщо в описі є хімія — ставимо хімічну іконку
+                    label_text = str(row[lbl_col]) if lbl_col else ""
+                    if "мг/" in label_text or "ppm" in label_text or "іприт" in label_text.lower():
+                        icon_url = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"
+                    else:
+                        icon_url = default_icon
+
+                st.session_state.rkhb_points.append({
+                    "lat": float(row[lat_col]), 
+                    "lng": float(row[lng_col]),
+                    "label": str(row[lbl_col]) if lbl_col else "Точка виміру", 
+                    "date": str(row[dat_col]) if dat_col else datetime.now().strftime("%d.%m.%Y"), 
+                    "icon": icon_url
+                })
+            st.success("Дані успішно імпортовано!")
+            st.rerun()
+        else:
+            st.error("Помилка імпорту! У CSV файлі не знайдено стовпчиків з координатами (Широта/Довгота або Lat/Lon).")
 
     if st.button("🗑️ Очистити ВСІ точки"):
         st.session_state.rkhb_points = []
