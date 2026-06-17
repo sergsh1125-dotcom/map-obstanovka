@@ -58,8 +58,8 @@ SRC_POST = get_icon_url("cbrn_post.svg", "https://raw.githubusercontent.com/serg
 # Ініціалізація сесії точок розвідки
 if "rkhb_points" not in st.session_state:
     st.session_state.rkhb_points = [
-        {"lat": 50.45, "lng": 30.52, "label": "Іприт - 0.05 мг/м³", "date": "17.06.2026", "icon": SRC_CHEMICAL},
-        {"lat": 50.46, "lng": 30.53, "label": "0.25 мкЗв/год", "date": "16.06.2026", "icon": SRC_RADIATION}
+        {"lat": 50.45, "lng": 30.52, "label": "Хлор - 0.5 мг/м³", "date": "21.05.2026", "icon": SRC_CHEMICAL},
+        {"lat": 50.46, "lng": 30.53, "label": "200.0 мЗв/год", "date": "21.05.2026", "icon": SRC_RADIATION}
     ]
 
 if "captured_lat" not in st.session_state:
@@ -128,42 +128,52 @@ with col_gui:
             
             st.markdown('<div class="import-btn">', unsafe_allow_html=True)
             if st.button("📥 Додати точки на карту з таблиці"):
-                orig_cols = list(df_csv.columns)
+                # Нормалізуємо назви колонок до нижнього регістру без пробілів
                 df_csv.columns = [col.strip().lower() for col in df_csv.columns]
                 
-                lat_col = next((c for c in df_csv.columns if c in ['lat', 'latitude', 'широта']), None)
-                lng_col = next((c for c in df_csv.columns if c in ['lng', 'lon', 'longitude', 'довгота']), None)
-                lbl_col = next((c for c in df_csv.columns if c in ['label', 'text', 'напис', 'показник', 'дані', 'данні', 'значення', 'концентрація', 'рівень']), None)
-                dat_col = next((c for c in df_csv.columns if c in ['date', 'дата']), None)
-                ico_col = next((c for c in df_csv.columns if c in ['icon', 'іконка', 'знак']), None)
+                # Точне зіставлення під вашу структуру Tabl_CBRN.csv
+                lat_col = 'lat' if 'lat' in df_csv.columns else None
+                lng_col = 'lon' if 'lon' in df_csv.columns else ('lng' if 'lng' in df_csv.columns else None)
+                val_col = 'value' if 'value' in df_csv.columns else None
+                uni_col = 'unit' if 'unit' in df_csv.columns else None
+                tim_col = 'time' if 'time' in df_csv.columns else None
+                typ_col = 'type' if 'type' in df_csv.columns else None
+                sub_col = 'substance' if 'substance' in df_csv.columns else None
                 
                 if lat_col and lng_col:
                     for idx, row in df_csv.iterrows():
-                        real_lat_name = orig_cols[list(df_csv.columns).index(lat_col)]
-                        real_lng_name = orig_cols[list(df_csv.columns).index(lng_col)]
-                        real_lbl_name = orig_cols[list(df_csv.columns).index(lbl_col)] if lbl_col else None
-                        real_dat_name = orig_cols[list(df_csv.columns).index(dat_col)] if dat_col else None
-                        real_ico_name = orig_cols[list(df_csv.columns).index(ico_col)] if ico_col else None
+                        # Збір чисельника (дані)
+                        val_raw = str(row[val_col]).strip() if (val_col and pd.notna(row[val_col])) else ""
+                        uni_raw = str(row[uni_col]).strip() if (uni_col and pd.notna(row[uni_col])) else ""
+                        sub_raw = str(row[sub_col]).strip() if (sub_col and pd.notna(row[sub_col])) else ""
+                        type_str = str(row[typ_col]).strip().lower() if (typ_col and pd.notna(row[typ_col])) else ""
                         
-                        label_text = str(row[real_lbl_name]).strip() if (real_lbl_name and pd.notna(row[real_lbl_name])) else "Точка розвідки"
-                        date_text = str(row[real_dat_name]).strip() if (real_dat_name and pd.notna(row[real_dat_name])) else datetime.now().strftime("%d.%m.%Y")
-                        
-                        if real_ico_name and pd.notna(row[real_ico_name]):
-                            icon_url = str(row[real_ico_name])
+                        # Формуємо красивий напис для чисельника
+                        if sub_raw:
+                            label_text = f"{sub_raw.capitalize()} - {val_raw} {uni_raw}"
                         else:
-                            if "мг/" in label_text or "ppm" in label_text or "іприт" in label_text.lower() or "хім" in label_text.lower():
-                                icon_url = SRC_CHEMICAL
-                            else:
-                                icon_url = SRC_RADIATION
+                            label_text = f"{val_raw} {uni_raw}".strip()
+                        
+                        if not label_text:
+                            label_text = "Точка розвідки"
+                            
+                        # Збір знаменника (дата)
+                        date_text = str(row[tim_col]).strip() if (tim_col and pd.notna(row[tim_col])) else datetime.now().strftime("%d.%m.%Y")
+                        
+                        # Визначення типу іконки
+                        if "хім" in type_str or "chemical" in type_str or "мг/" in uni_raw or "ppm" in uni_raw:
+                            icon_url = SRC_CHEMICAL
+                        else:
+                            icon_url = SRC_RADIATION
 
                         st.session_state.rkhb_points.append({
-                            "lat": float(row[real_lat_name]), "lng": float(row[real_lng_name]),
+                            "lat": float(row[lat_col]), "lng": float(row[lng_col]),
                             "label": label_text, "date": date_text, "icon": icon_url
                         })
-                    st.success(f"Успішно нанесено {len(df_csv)} точок!")
+                    st.success(f"Успішно нанесено {len(df_csv)} точок з вашої таблиці!")
                     st.rerun()
                 else:
-                    st.error("Помилка! Перевірте наявність колонок координат у таблиці.")
+                    st.error("Помилка! Перевірте наявність колонок координат 'lat' та 'lon' у вашій таблиці.")
             st.markdown('</div>', unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Помилка читання CSV: {str(e)}")
@@ -173,7 +183,6 @@ with col_gui:
         st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=110)
         st.download_button("💾 Експорт бази в CSV", df_view.to_csv(index=False), "rkhb_data.csv", "text/csv")
 
-# Конвертація точок в чистий JSON без подвійних лапок
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
 # ==========================================
@@ -301,7 +310,17 @@ html_map_component = """
     var dateLayers = {}; 
     var layerControl = L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
 
-    // Зчитування масиву точок (і ручних, і з таблиці CSV)
+    // Функція інтегрованого тотального видалення кліком при увімкненому смітнику Geoman
+    function attachRemovalClick(layer) {
+        layer.on('click', function(e) {
+            if (map.pm.globalRemovalModeEnabled()) {
+                L.DomEvent.stopPropagation(e);
+                map.removeLayer(layer);
+            }
+        });
+    }
+
+    // Рендеринг вхідного стабільного масиву точок (з бази та CSV файлу)
     var inputPoints = DATA_FROM_PYTHON;
     
     if(Array.isArray(inputPoints)) {
@@ -323,8 +342,7 @@ html_map_component = """
                             
             marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 14], className: 'leaflet-div-icon' });
             
-            // Інтеграція під систему розумного видалення кліком
-            marker.on('click', function(e) { handleLayerClick(e, marker); });
+            attachRemovalClick(marker);
             marker.addTo(dateLayers[dateStr]);
         });
     }
@@ -350,14 +368,6 @@ html_map_component = """
     document.getElementById('ellipseBtn').onclick = function() { ellipseMode = true; textMode = false; activeIcon = ""; document.getElementById('signSelect').value = ""; };
     document.getElementById('stopBtn').onclick = function() { clearModes(); };
 
-    // РОЗУМНЕ ВИДАЛЕННЯ: якщо активовано інструмент "Смітник" ліворуч, об'єкт стирається по кліку
-    function handleLayerClick(e, layer) {
-        if (map.pm.globalRemovalModeEnabled()) {
-            L.DomEvent.stopPropagation(e);
-            map.removeLayer(layer);
-        }
-    }
-
     map.on('click', function(e) {
         if (!activeIcon && !textMode && !ellipseMode) {
             if (map.pm.globalRemovalModeEnabled()) return;
@@ -372,15 +382,15 @@ html_map_component = """
 
         if (activeIcon) {
             var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(map);
-            m.on('click', function(ev) { handleLayerClick(ev, m); });
+            attachRemovalClick(m);
         }
         if (textMode) {
             var txt = prompt("Введіть оперативно-тактичний підпис:");
             if (txt) {
                 var tm = L.marker(e.latlng, {
-                    icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px; background:transparent;'>️" + txt + "</span>" })
+                    icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px; background:transparent;'>" + txt + "</span>" })
                 }).addTo(map);
-                tm.on('click', function(ev) { handleLayerClick(ev, tm); });
+                attachRemovalClick(tm);
             }
         }
         if (ellipseMode) {
@@ -406,7 +416,7 @@ html_map_component = """
                 points.push([centerLat + latOffset, centerLng + lngOffset]);
             }
             var poly = L.polygon(points, { color: 'black', weight: 1, fillColor: colors[idx], fillOpacity: opacities[idx] }).addTo(map);
-            poly.on('click', function(ev) { handleLayerClick(ev, poly); });
+            attachRemovalClick(poly);
         });
     }
 
@@ -422,7 +432,7 @@ html_map_component = """
             var txt = "Радіус: " + (radius >= 1000 ? (radius/1000).toFixed(2) + " км" : Math.round(radius) + " м");
             e.layer.bindTooltip(txt, { permanent: true, direction: 'center', className: 'size-tooltip' }).openTooltip();
         }
-        e.layer.on('click', function(ev) { handleLayerClick(ev, e.layer); });
+        attachRemovalClick(e.layer);
     });
 
     document.getElementById('pngBtn').onclick = function() {
