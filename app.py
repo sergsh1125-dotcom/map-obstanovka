@@ -209,7 +209,7 @@ html_map_component = """
     var layerControl = L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
 
     // 3. Завантаження та пошарове групування точок розвідки з бази Streamlit (Python)
-    var inputPoints = {points_json};
+    var inputPoints = DATA_FROM_PYTHON;
     
     inputPoints.forEach(function(pt) {{
         var dateStr = pt.date || "Базові дані";
