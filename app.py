@@ -18,33 +18,33 @@ st.markdown("""
     border: 1px solid #cca300 !important;
 }
 .stButton button:hover { background-color: #ffea00 !important; }
+/* Контрастний бокс для координат - тепер текст завжди видно */
 .coord-box {
-    background-color: #e3f2fd; padding: 10px; border-radius: 5px;
-    border-left: 5px solid #2196f3; font-weight: bold; margin-bottom: 10px;
+    background-color: #1e1e1e !important; color: #FFD600 !important; 
+    padding: 12px; border-radius: 6px; text-align: center;
+    border: 2px solid #FFD600; font-weight: bold; font-size: 16px; margin-bottom: 15px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Ініціалізація бази точок розвідки
+# Ініціалізація бази точок розвідки в сесії
 if "rkhb_points" not in st.session_state:
     st.session_state.rkhb_points = [
         {"lat": 50.45, "lng": 30.52, "label": "Іприт - 0.05 мг/м³", "date": "17.06.2026", "icon": "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"},
         {"lat": 50.46, "lng": 30.53, "label": "0.25 мкЗв/год", "date": "16.06.2026", "icon": "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"}
     ]
 
-# Буфер для координат
+# Буферні змінні для збереження координат поточного кліку
 if "captured_lat" not in st.session_state:
     st.session_state.captured_lat = 50.4500
 if "captured_lng" not in st.session_state:
     st.session_state.captured_lng = 30.5200
 
-# Надійна обробка координат через нову систему query_params з очищенням
-if "click_lat" in st.query_params:
+# Зчитування нових координат з URL-параметрів (якщо вони прийшли з карти)
+if "click_lat" in st.query_params and "click_lng" in st.query_params:
     try:
         st.session_state.captured_lat = float(st.query_params["click_lat"])
         st.session_state.captured_lng = float(st.query_params["click_lng"])
-        # Стираємо параметри з URL відразу після зчитування, щоб наступний клік розпізнавався як новий
-        st.query_params.clear()
     except (ValueError, TypeError):
         pass
 
@@ -58,13 +58,15 @@ col_map, col_gui = st.columns([3, 1])
 with col_gui:
     st.subheader("⚙️ УПРАВЛІННЯ ДАНИМИ")
     
-    st.markdown(f"<div class='coord-box'>📍 {st.session_state.captured_lat:.5f}, {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
+    # КОНТРАСТНЕ ТАБЛО: Чорний фон, жовтий текст. Координати видно завжди!
+    st.markdown(f"<div class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
     
     with st.expander("➕ Параметри точки вимірювання", expanded=True):
         m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"])
         
-        m_lat = st.number_input("Широта (Lat)", value=st.session_state.captured_lat, format="%.5f", key="lat_field")
-        m_lon = st.number_input("Довгота (Lon)", value=st.session_state.captured_lng, format="%.5f", key="lng_field")
+        # Динамічні поля, що реагують на кожен новий клік/дотик на карті
+        m_lat = st.number_input("Широта (Lat)", value=st.session_state.captured_lat, format="%.5f", key=f"lat_{st.session_state.captured_lat}")
+        m_lon = st.number_input("Довгота (Lon)", value=st.session_state.captured_lng, format="%.5f", key=f"lng_{st.session_state.captured_lng}")
         
         if m_type == "Радіоактивне":
             r_val = st.number_input("Показник радіації", value=0.15, step=0.01)
@@ -87,45 +89,55 @@ with col_gui:
 
     st.divider()
     
+    # ВИПРАВЛЕНИЙ НАДІЙНИЙ ІМПОРТ З CSV ТАБЛИЦІ
     file = st.file_uploader("📥 Імпорт розвідки з CSV", type=["csv"])
     if file:
-        df_csv = pd.read_csv(file)
-        
-        # Переводимо назви стовпчиків у нижній регістр для легкого пошуку
-        df_csv.columns = [col.strip().lower() for col in df_csv.columns]
-        
-        # Автоматичний пошук потрібних стовпчиків за ключовими словами
-        lat_col = next((c for c in df_csv.columns if c in ['lat', 'latitude', 'широта']), None)
-        lng_col = next((c for c in df_csv.columns if c in ['lng', 'lon', 'longitude', 'довгота']), None)
-        lbl_col = next((c for c in df_csv.columns if c in ['label', 'text', 'напис', 'показник']), None)
-        dat_col = next((c for c in df_csv.columns if c in ['date', 'дата']), None)
-        ico_col = next((c for c in df_csv.columns if c in ['icon', 'іконка', 'знак']), None)
-        
-        if lat_col and lng_col:
-            for _, row in df_csv.iterrows():
-                # Визначаємо іконку за замовчуванням, якщо стовпчика немає або він пустий
-                default_icon = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"
-                if ico_col and pd.notna(row[ico_col]):
-                    icon_url = str(row[ico_col])
-                else:
-                    # Якщо в описі є хімія — ставимо хімічну іконку
-                    label_text = str(row[lbl_col]) if lbl_col else ""
-                    if "мг/" in label_text or "ppm" in label_text or "іприт" in label_text.lower():
-                        icon_url = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"
+        try:
+            df_csv = pd.read_csv(file)
+            # Приведення назв до нижнього регістру
+            orig_cols = list(df_csv.columns)
+            df_csv.columns = [col.strip().lower() for col in df_csv.columns]
+            
+            # Пошук індексів стовпчиків
+            lat_col = next((c for c in df_csv.columns if c in ['lat', 'latitude', 'широта']), None)
+            lng_col = next((c for c in df_csv.columns if c in ['lng', 'lon', 'longitude', 'довгота']), None)
+            lbl_col = next((c for c in df_csv.columns if c in ['label', 'text', 'напис', 'показник']), None)
+            dat_col = next((c for c in df_csv.columns if c in ['date', 'дата']), None)
+            ico_col = next((c for c in df_csv.columns if c in ['icon', 'іконка', 'знак']), None)
+            
+            if lat_col and lng_col:
+                for idx, row in df_csv.iterrows():
+                    # Повертаємо оригінальну назву стовпчика для зчитування з row
+                    real_lat_name = orig_cols[list(df_csv.columns).index(lat_col)]
+                    real_lng_name = orig_cols[list(df_csv.columns).index(lng_col)]
+                    real_lbl_name = orig_cols[list(df_csv.columns).index(lbl_col)] if lbl_col else None
+                    real_dat_name = orig_cols[list(df_csv.columns).index(dat_col)] if dat_col else None
+                    real_ico_name = orig_cols[list(df_csv.columns).index(ico_col)] if ico_col else None
+                    
+                    label_text = str(row[real_lbl_name]) if real_lbl_name else "Точка розвідки"
+                    date_text = str(row[real_dat_name]) if real_dat_name else datetime.now().strftime("%d.%m.%Y")
+                    
+                    if real_ico_name and pd.notna(row[real_ico_name]):
+                        icon_url = str(row[real_ico_name])
                     else:
-                        icon_url = default_icon
+                        if "мг/" in label_text or "ppm" in label_text or "іприт" in label_text.lower():
+                            icon_url = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"
+                        else:
+                            icon_url = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"
 
-                st.session_state.rkhb_points.append({
-                    "lat": float(row[lat_col]), 
-                    "lng": float(row[lng_col]),
-                    "label": str(row[lbl_col]) if lbl_col else "Точка виміру", 
-                    "date": str(row[dat_col]) if dat_col else datetime.now().strftime("%d.%m.%Y"), 
-                    "icon": icon_url
-                })
-            st.success("Дані успішно імпортовано!")
-            st.rerun()
-        else:
-            st.error("Помилка імпорту! У CSV файлі не знайдено стовпчиків з координатами (Широта/Довгота або Lat/Lon).")
+                    st.session_state.rkhb_points.append({
+                        "lat": float(row[real_lat_name]), 
+                        "lng": float(row[real_lng_name]),
+                        "label": label_text, 
+                        "date": date_text, 
+                        "icon": icon_url
+                    })
+                st.success(f"Успішно нанесено {len(df_csv)} точок!")
+                st.rerun()
+            else:
+                st.error("У CSV не знайдено колонок координат (Lat/Lng або Широта/Довгота).")
+        except Exception as e:
+            st.error(f"Помилка структури файлу: {str(e)}")
 
     if st.button("🗑️ Очистити ВСІ точки"):
         st.session_state.rkhb_points = []
@@ -136,7 +148,7 @@ with col_gui:
 
     if st.session_state.rkhb_points:
         df_view = pd.DataFrame(st.session_state.rkhb_points)
-        st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=130)
+        st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=120)
         st.download_button("💾 Експорт бази в CSV", df_view.to_csv(index=False), "rkhb_data.csv", "text/csv")
 
 
@@ -182,7 +194,6 @@ html_map_component = """
         }
         .panel-btn:hover { background: #d4d4d4; }
         
-        /* КНОПКА СТОП (ЧЕРВОНА) */
         .btn-stop { background: #ffcdd2 !important; color: #b71c1c !important; border-color: #e57373 !important; }
         .btn-stop:hover { background: #ef9a9a !important; }
 
@@ -200,16 +211,13 @@ html_map_component = """
             color: #fff !important; font-weight: bold; font-size: 11px; padding: 3px 6px; border-radius: 4px;
         }
         
-        /* ПОЛНІСТЮ ПРОЗОРЕ ПОЛЕ ПІДПИСУ БЕЗ БІЛИХ КВАДРАТІВ ТА ТІНЕЙ */
+        /* АБСОЛЮТНО ПРОЗОРІ ТАКТИЧНІ НАПИСИ НА КАРТІ */
         .leaflet-div-icon {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
+            background: transparent !important; border: none !important; box-shadow: none !important;
         }
         .cbrn-military-lbl {
             font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; color: #000 !important;
-            text-align: center; display: inline-block; white-space: nowrap; line-height: 1.3;
-            background: transparent !important;
+            text-align: center; display: inline-block; white-space: nowrap; line-height: 1.3; background: transparent !important;
         }
         .cbrn-line-divider {
             border-bottom: 2px solid #000 !important; width: 100%; display: block; margin: 2px 0;
@@ -304,7 +312,6 @@ html_map_component = """
                                 "<span class='cbrn-date-sub'>" + dateStr + "</span>" + 
                             "</div>";
                             
-            // Передаємо чистий прозорий стиль для уникнення білих блоків під текстом
             marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 14], className: 'leaflet-div-icon' });
             marker.addTo(dateLayers[dateStr]);
         });
@@ -326,23 +333,23 @@ html_map_component = """
     document.getElementById('ellipseBtn').onclick = function() {
         ellipseMode = true; textMode = false; activeIcon = ""; document.getElementById('signSelect').value = "";
     };
-    
-    // ЛОГІКА РОБОТИ КНОПКИ СТОП
     document.getElementById('stopBtn').onclick = function() {
         clearModes();
     };
 
+    // ФУНКЦІЯ НАДІЙНОЇ ПЕРЕДАЧІ КООРДИНАТ БЕЗ ЗБОЇВ ДЛЯ КОЖНОГО НАСТУПНОГО КЛІКУ
     map.on('click', function(e) {
-        // Якщо режими графіки відключені — виконується циклічна синхронізація координат з Python
         if (!activeIcon && !textMode && !ellipseMode) {
             var lat = e.latlng.lat;
             var lng = e.latlng.lng;
             
-            // Наднадійний спосіб зміни параметрів: міняємо URL та ініціюємо примусове оновлення фрейму Streamlit
-            const url = new URL(window.parent.location.href);
+            // Пряма заміна параметрів у батьківському вікні без руйнування стану сесії
+            var url = new URL(window.parent.location.href);
             url.searchParams.set('click_lat', lat.toFixed(5));
             url.searchParams.set('click_lng', lng.toFixed(5));
             window.parent.history.replaceState({}, '', url);
+            
+            // Дублюючий клік-сигнал для реактивності Streamlit
             window.parent.postMessage({type: "streamlit:set_query_params", params: {click_lat: lat.toFixed(5), click_lng: lng.toFixed(5)}}, "*");
             return;
         }
@@ -438,4 +445,5 @@ html_map_component = """
 # ==========================================
 with col_map:
     final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
-    components.html(final_html, height=710, scrolling=False)
+    # Збільшено висоту для комфортного відображення
+    components.html(final_html, height=720, scrolling=False)
