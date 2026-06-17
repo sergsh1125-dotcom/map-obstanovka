@@ -43,7 +43,7 @@ with col_gui:
         if m_type == "Радіоактивне":
             r_val = st.number_input("Показник радіації", value=0.15)
             r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год"])
-            lbl = f"Радіація: {r_val} {r_u_label := r_uni}"
+           lbl = f"Радіація: {r_val} {r_uni}"
             ico = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"
         else:
             c_sub = st.text_input("Речовина", value="Іприт")
