@@ -1,184 +1,327 @@
 import streamlit as st
 import pandas as pd
-import folium
-from streamlit_folium import st_folium
+import json
 from datetime import datetime
+import streamlit.components.v1 as components
 
-# ===============================
-# 1. НАЛАШТУВАННЯ СТОРІНКИ ТА СТИЛІВ
-# ===============================
-st.set_page_config(page_title="РХБ ОБСТАНОВКА", layout="wide")
+# Налаштування сторінки Streamlit
+st.set_page_config(page_title="РХБ ОБСТАНОВКА - АВТОНОМНА КАРТА", layout="wide")
 
 st.markdown("""
 <style>
 #MainMenu, footer, header {visibility: hidden;}
-/* Стиль жовтих кнопок */
 .stButton button {
     font-weight: bold; width: 100%; height: 3em; border-radius: 8px; 
     background-color: #FFD600 !important; color: black !important;
     border: 1px solid #cca300 !important;
 }
-.stButton button:hover { background-color: #ffea00 !important; border: 2px solid #4CAF50 !important; }
-
-/* Зелена кнопка нанесення */
-div.stButton > button:first-child[data-testid="stBaseButton-primary"] {
-    background-color: #4CAF50 !important; color: white !important; border: 1px solid #388E3C !important;
-}
+.stButton button:hover { background-color: #ffea00 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# Стан програми
-if "data" not in st.session_state:
-    st.session_state.data = pd.DataFrame(columns=["lat", "lon", "value", "unit", "time", "type", "substance"])
-if "clicked_coords" not in st.session_state:
-    st.session_state.clicked_coords = None
+# Ініціалізація сесії для збереження точок розвідки
+if "rkhb_points" not in st.session_state:
+    st.session_state.rkhb_points = [
+        # Приклад початкових точок (можна видалити або очистити кнопкою)
+        {"lat": 50.45, "lng": 30.52, "label": "Хімія: Зарин 0.05 мг/м³", "date": "17.06.2026", "icon": "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"},
+        {"lat": 50.46, "lng": 30.53, "label": "Радіація: 0.25 мкЗв/год", "date": "16.06.2026", "icon": "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"}
+    ]
 
-# ===============================
-# 2. ФУНКЦІЯ ПІДПИСУ (З ЛІНІЄЮ)
-# ===============================
-def marker_html(main_text, date_text):
-    return f"""
-    <div style="display: inline-block; font-family: Arial; font-size: 10pt; color: blue; font-weight: bold; 
-                text-align: center; white-space: nowrap; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;">
-        <div style="border-bottom: 2px solid blue; display: inline-block; padding-bottom: 2px; margin-bottom: 2px;">
-            {main_text}
-        </div>
-        <div style="font-weight: normal; font-size: 9pt;">
-            {date_text}
-        </div>
-    </div>
-    """
+st.header("☢️ МОДУЛЬ 1: ФАКТИЧНА РХБ ОБСТАНОВКА ПО ДНЯХ РОЗВІДКИ")
 
-# ===============================
-# 3. СТВОРЕННЯ КАРТИ З ЛЕГЕНДОЮ ПО ДНЯМ
-# ===============================
-def create_map(df, start_lat, start_lon, zoom_val):
-    m = folium.Map(location=[start_lat, start_lon], zoom_start=zoom_val, tiles=None, control_scale=True)
-    
-    # Шари карти
-    folium.TileLayer('OpenStreetMap', name='Карта', show=True).add_to(m)
-    folium.TileLayer(tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', 
-                     attr='Google', name='Супутник', show=False).add_to(m)
-
-    # Червоний маркер вибору місця
-    if st.session_state.clicked_coords:
-        folium.Marker([st.session_state.clicked_coords['lat'], st.session_state.clicked_coords['lng']],
-                      icon=folium.Icon(color="red", icon="plus")).add_to(m)
-
-    # Групування точок по дням для легенди
-    if not df.empty:
-        # Отримуємо унікальні дати
-        unique_days = sorted(df['time'].unique(), reverse=True)
-        
-        for day in unique_days:
-            # Створюємо групу для кожного дня
-            group = folium.FeatureGroup(name=f"📅 {day}")
-            
-            # Фільтруємо дані за цей день
-            day_data = df[df['time'] == day]
-            
-            for _, r in day_data.iterrows():
-                # Визначаємо стиль залежно від типу (Радіація чи Хімія)
-                if "Хімічне" in str(r["type"]):
-                    main_color, fill_color = "orange", "yellow"
-                    label = f"{r['substance']} {r['value']} {r['unit']}"
-                else:
-                    main_color, fill_color = "blue", "blue"
-                    label = f"{r['value']} {r['unit']}"
-
-                # Сама точка
-                folium.CircleMarker(
-                    [r.lat, r.lon], radius=4, color=main_color, 
-                    fill=True, fill_color=fill_color, fill_opacity=1
-                ).add_to(group)
-
-                # Підпис до точки
-                folium.Marker(
-                    [r.lat, r.lon],
-                    icon=folium.DivIcon(icon_anchor=(80, 45), html=marker_html(label, str(r['time'])))
-                ).add_to(group)
-            
-            # Додаємо групу дня на карту
-            group.add_to(m)
-
-    # Додаємо контроль шарів (Легенда)
-    folium.LayerControl(collapsed=False).add_to(m)
-    return m
-
-# ===============================
-# 4. ІНТЕРФЕЙС
-# ===============================
-st.header("КАРТА РХБ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
 with col_gui:
-    st.subheader("ПУЛЬТ УПРАВЛІННЯ")
-    mode = st.radio("Режим:", ["Радіоактивне забруднення", "Хімічне забруднення"], key="mode_switch")
-    st.divider()
-
-    # Координати з кліку
-    if st.session_state.clicked_coords:
-        c_lat, c_lon = st.session_state.clicked_coords['lat'], st.session_state.clicked_coords['lng']
-        st.info(f"📍 {c_lat:.6f}, {c_lon:.6f}")
-        if st.button("Вставити координати"):
-            st.session_state.manual_lat, st.session_state.manual_lon = c_lat, c_lon
+    st.subheader("⚙️ УПРАВЛІННЯ ДАНИМИ")
+    
+    # Форма для додавання точок вручну через інтерфейс Streamlit (якщо відомі координати)
+    with st.expander("➕ Додати точку розвідки вручну"):
+        m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"])
+        m_lat = st.number_input("Широта (Lat)", value=50.4500, format="%.5f")
+        m_lon = st.number_input("Довгота (Lon)", value=30.5200, format="%.5f")
+        
+        if m_type == "Радіоактивне":
+            r_val = st.number_input("Показник радіації", value=0.15)
+            r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год"])
+            lbl = f"Радіація: {r_val} {r_u_label := r_uni}"
+            ico = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"
+        else:
+            c_sub = st.text_input("Речовина", value="Іприт")
+            c_val = st.number_input("Концентрація", value=0.1)
+            c_uni = st.selectbox("Одиниця виміру", ["мг/м³", "ppm"])
+            lbl = f"Хімія: {c_sub} {c_val} {c_uni}"
+            ico = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"
+            
+        m_date = st.date_input("Дата розвідки", value=datetime.now()).strftime("%d.%m.%Y")
+        
+        if st.button("Зберегти точку в базу"):
+            st.session_state.rkhb_points.append({"lat": m_lat, "lng": m_lon, "label": lbl, "date": m_date, "icon": ico})
             st.rerun()
 
-    lat_input = st.number_input("Широта", format="%.6f", value=st.session_state.get('manual_lat', 50.4500))
-    lon_input = st.number_input("Довгота", format="%.6f", value=st.session_state.get('manual_lon', 30.5200))
-
-    # Блоки вводу
-    if mode == "Радіоактивне забруднення":
-        st.markdown("#### Радіація")
-        val = st.number_input("Значення", format="%.2f", step=0.01, key="r_v")
-        uni = st.selectbox("Одиниця", ["мкЗв/год", "мЗв/год"], key="r_u")
-        sub = ""
-    else:
-        st.markdown("#### Хімія")
-        sub = st.text_input("Речовина", key="c_s")
-        val = st.number_input("Значення", format="%.2f", step=0.01, key="c_v")
-        uni = st.selectbox("Одиниця", ["мг/м³", "ppm"], key="c_u")
-
-    date_input = st.date_input("Дата", value=datetime.now()).strftime("%d.%m.%Y")
-
-    if st.button("✅ НАНЕСТИ НА КАРТУ", type="primary"):
-        new_row = pd.DataFrame([{
-            "lat": lat_input, "lon": lon_input, "value": val, "unit": uni, 
-            "time": date_input, "type": mode, "substance": sub
-        }])
-        st.session_state.data = pd.concat([st.session_state.data, new_row], ignore_index=True)
-        st.session_state.clicked_coords = None
-        st.rerun()
-
     st.divider()
-    file = st.file_uploader("Імпорт CSV", type=["csv"])
-    if file and st.button("Завантажити дані"):
+    
+    # Інструменти імпорту/експорту табличних даних
+    file = st.file_uploader("📥 Імпорт розвідки з CSV", type=["csv"])
+    if file:
         df_csv = pd.read_csv(file)
-        st.session_state.data = pd.concat([st.session_state.data, df_csv], ignore_index=True)
+        # Очікується CSV зі стовпцями: lat, lng, label, date, icon
+        for _, row in df_csv.iterrows():
+            st.session_state.rkhb_points.append({
+                "lat": float(row['lat']), "lng": float(row['lng']),
+                "label": str(row['label']), "date": str(row['date']), "icon": str(row['icon'])
+            })
+        st.success("Дані успішно імпортовано!")
         st.rerun()
 
-# ===============================
-# 5. ВІДОБРАЖЕННЯ КАРТИ
-# ===============================
+    if st.button("🗑️ Очистити ВСІ точки"):
+        st.session_state.rkhb_points = []
+        st.rerun()
+
+    # Відображення поточної бази точок
+    if st.session_state.rkhb_points:
+        st.markdown("### 📊 Поточні точки в сесії:")
+        df_view = pd.DataFrame(st.session_state.rkhb_points)
+        st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=200)
+        st.download_button("💾 Експорт бази в CSV", df_view.to_csv(index=False), "rkhb_data.csv", "text/csv")
+
+
+# GENERATION OF THE AUTONOMOUS INTERACTIVE MAP (HTML/JS)
+# Передаємо поточну базу точок зі Streamlit всередину JavaScript через JSON
+points_json = json.dumps(st.session_state.rkhb_points)
+
+html_map_component = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.0/dist/leaflet-geoman.css" />
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.0/dist/leaflet-geoman.min.js"></script>
+
+    <style>
+        html, body {{ margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; }}
+        #map {{ width: 100%; height: 100vh; background: #e5e3df; }}
+        
+        /* Панель управління знаками всередині карти */
+        #mapControlsPanel {{
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: rgba(26, 26, 26, 0.9); color: #fff; padding: 10px;
+            border-radius: 8px; border: 2px solid #FFD600; width: 220px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }}
+        #mapControlsPanel select, #mapControlsPanel input {{
+            width: 100%; padding: 5px; margin-top: 5px; margin-bottom: 8px;
+            background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; font-size: 12px;
+            box-sizing: border-box;
+        }}
+        #mapControlsPanel label {{ font-size: 11px; font-weight: bold; color: #FFD600; }}
+        .panel-btn {{
+            width: 100%; padding: 6px; background: #444; color: #fff; border: 1px solid #555;
+            border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-bottom: 4px;
+        }}
+        .panel-btn:hover {{ background: #555; }}
+        
+        /* Віджет Вітру */
+        #windWidget {{
+            position: absolute; bottom: 20px; left: 10px; z-index: 1000;
+            background: rgba(26, 26, 26, 0.9); color: #FFD600; padding: 8px;
+            border-radius: 8px; border: 1px solid #FFD600; text-align: center; width: 80px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }}
+        .wind-arrow {{ font-size: 24px; display: inline-block; transition: transform 0.5s; }}
+        .wind-info {{ font-size: 10px; color: #fff; margin-top: 2px; font-weight: bold; }}
+
+        /* Стиль підписів розмірів для Лінійки/Кіл */
+        .size-tooltip {{
+            background: rgba(0, 0, 0, 0.8) !important; border: 1px solid #FFD600 !important;
+            color: #fff !important; font-weight: bold; font-size: 11px; padding: 3px 6px; border-radius: 4px;
+        }}
+        .cbrn-text-lbl {{
+            font-size: 12px; font-weight: bold; color: blue; white-space: nowrap;
+            text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+            border-bottom: 2px solid blue; display: inline-block;
+        }}
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div id="windWidget">
+        <div class="wind-arrow" id="arrow">↑</div>
+        <div class="wind-info" id="degInfo">0°</div>
+        <div class="wind-info" id="speedInfo">0 м/с</div>
+    </div>
+
+    <div id="mapControlsPanel">
+        <label>⚙️ ОПЕРАТИВНИЙ РЕЖИМ</label>
+        <select id="signSelect">
+            <option value="">-- Оберіть умовний знак --</option>
+            <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg">Точка радіоактивного забруднення</option>
+            <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg">Точка хімічного забруднення</option>
+            <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_biological.svg">Точка біологічного зараження</option>
+            <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/nuclear_blast.svg">Епіцентр ядерного вибуху</option>
+            <option value="https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/cbrn_post.svg">Пост спостереження РХБ</option>
+        </select>
+
+        <button class="panel-btn" style="background: #5c3a21;" id="ellipseBtn">Побудувати Еліпс AEGL</button>
+        <button class="panel-btn" style="background: #1565c0;" id="textBtn">Додати Текст</button>
+        
+        <hr style="border: 0; border-top: 1px dashed #555; margin: 8px 0;">
+        
+        <label>💨 НАЛАШТУВАННЯ МЕТЕО</label>
+        <input type="number" id="wDegInput" placeholder="Напрямок вітру (0-360)" min="0" max="360" value="0">
+        <input type="number" id="wSpeedInput" placeholder="Швидкість вітру (м/с)" min="0" value="0" step="0.1">
+        <button class="panel-btn" style="background: #FFD600; color:#000;" id="applyMeteoBtn">Застосувати метео</button>
+    </div>
+
+<script>
+    // 1. Ініціалізація карти OSM
+    var map = L.map('map', { zoomControl: true }).setView([48.3, 31.1], 6);
+    
+    var osmLayer = L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}.png', {
+        maxZoom: 19, attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={{x}}&y={{y}}&z={{z}}', {
+        attribution: '© Google'
+    });
+
+    // 2. Стандартна панель Leaflet-Geoman (OSM лінійка, кола, багатокутники)
+    map.pm.addControls({
+        position: 'topleft',
+        drawMarker: false, drawCircleMarker: false, drawPolyline: true,
+        drawRectangle: true, drawPolygon: true, drawCircle: true,
+        removalMode: true, editMode: false, dragMode: false
+    });
+    
+    // Вмикаємо відображення радіуса та відстаней на лінійці
+    map.pm.setGlobalOptions({
+        measurements: { display: true, radius: true, totalLength: true, segmentLength: true }
+    });
+    map.pm.setLang('uk');
+
+    // Налаштування шарів для фільтрації за датами розвідки
+    var baseMaps = { "🗺️ Карта OSM": osmLayer, "🛰️ Супутник Google": satLayer };
+    var dateLayers = {}; // Шари для кожної дати розвідки
+    var layerControl = L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
+
+    // 3. Завантаження та пошарове групування точок розвідки з бази Streamlit (Python)
+    var inputPoints = {points_json};
+    
+    inputPoints.forEach(function(pt) {{
+        var dateStr = pt.date || "Базові дані";
+        
+        // Створюємо шар для конкретної дати, якщо його ще немає
+        if (!dateLayers[dateStr]) {{
+            dateLayers[dateStr] = L.layerGroup().addTo(map);
+            layerControl.addOverlay(dateLayers[dateStr], "📅 " + dateStr);
+        }}
+        
+        // Відображаємо офіційний умовний знак ХБРЯ
+        var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [28, 28], iconAnchor: [14, 14] });
+        
+        var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
+        
+        // Створення красивого виносного текстового підпису під точкою
+        var labelHtml = "<div class='cbrn-text-lbl'>" + pt.label + "<br><span style='font-weight:normal; font-size:10px; color:#555;'>" + dateStr + "</span></div>";
+        marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 10], className: 'leaflet-div-icon' });
+        
+        marker.addTo(dateLayers[dateStr]);
+    }});
+
+    // 4. Логіка взаємодії з панеллю знаків, текстом та еліпсами AEGL
+    var activeIcon = "";
+    var textMode = false;
+    var ellipseMode = false;
+
+    document.getElementById('signSelect').onchange = function(e) {{
+        activeIcon = e.target.value; textMode = false; ellipseMode = false;
+    }};
+    document.getElementById('textBtn').onclick = function() {{
+        textMode = true; ellipseMode = false; activeIcon = ""; document.getElementById('signSelect').value = "";
+    }};
+    document.getElementById('ellipseBtn').onclick = function() {{
+        ellipseMode = true; textMode = false; activeIcon = ""; document.getElementById('signSelect').value = "";
+    }};
+
+    // Клік по карті для встановлення елементів
+    map.on('click', function(e) {{
+        if (activeIcon) {{
+            L.marker(e.latlng, {{ icon: L.icon({{ iconUrl: activeIcon, iconSize: [28, 28], iconAnchor: [14, 14] }}) }}).addTo(map);
+        }}
+        if (textMode) {{
+            var txt = prompt("Введіть оперативно-тактичний підпис:");
+            if (txt) {{
+                L.marker(e.latlng, {{
+                    icon: L.divIcon({{ className: 'leaflet-div-icon', html: "<span class='cbrn-text-lbl'>" + txt + "</span>" }})
+                }}).addTo(map);
+            }}
+            textMode = false;
+        }}
+        if (ellipseMode) {{
+            var rX = prompt("Довжина зони AEGL (метри за вітром):", "4000"); if (!rX) return;
+            var rY = prompt("Ширина зони AEGL (метри бокова):", "1500"); if (!rY) return;
+            var deg = parseFloat(document.getElementById('wDegInput').value) || 0;
+            
+            drawCbrnEllipse(e.latlng.lat, e.latlng.lng, parseFloat(rX), parseFloat(rY), deg);
+            ellipseMode = false;
+        }}
+    }});
+
+    // Розрахунок та малювання каскаду зон хімічного забруднення AEGL-1/2/3
+    function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {{
+        var angles = [1, 0.6, 0.3];
+        var colors = ["#ffcc00", "#ff9900", "#cc0000"];
+        var opacities = [0.25, 0.4, 0.6];
+        var windRad = (deg + 180) * Math.PI / 180;
+
+        angles.forEach(function(scale, idx) {{
+            var curRx = rx * scale; var curRy = ry * scale;
+            var points = [];
+            for (var i = 0; i <= 64; i++) {{
+                var angle = (i / 64) * 2 * Math.PI;
+                var x = curRy * Math.cos(angle);
+                var y = curRx * Math.sin(angle);
+                var rotX = x * Math.cos(windRad) + (y + curRx) * Math.sin(windRad);
+                var rotY = -x * Math.sin(windRad) + (y + curRx) * Math.cos(windRad);
+                var latOffset = rotY / 111320;
+                var lngOffset = rotX / (111320 * Math.cos(centerLat * Math.PI / 180));
+                points.push([centerLat + latOffset, centerLng + lngOffset]);
+            }}
+            var poly = L.polygon(points, {{ color: 'black', weight: 1, fillColor: colors[idx], fillOpacity: opacities[idx] }}).addTo(map);
+            
+            // Видалення кліком
+            poly.on('click', function(ev) {{ L.DomEvent.stopPropagation(ev); if(confirm("Видалити зону хімічного забруднення?")) map.removeLayer(poly); }});
+        }});
+    }}
+
+    // 5. Логіка віджета вітру
+    document.getElementById('applyMeteoBtn').onclick = function() {{
+        var deg = parseFloat(document.getElementById('wDegInput').value) || 0;
+        var speed = parseFloat(document.getElementById('wSpeedInput').value) || 0;
+        
+        // Візуальний поворот стрілки (звідки дує вітер)
+        document.getElementById('arrow').style.transform = "rotate(" + ((deg + 180) % 360) + "deg)";
+        document.getElementById('degInfo').innerText = deg + "°";
+        document.getElementById('speedInfo').innerText = speed + " м/с";
+    }};
+
+    // Динамічний підпис радіуса для нових кіл Geoman
+    map.on('pm:create', function(e) {{
+        if (e.shape === 'Circle') {{
+            var radius = e.layer.getRadius();
+            var txt = "Радіус: " + (radius >= 1000 ? (radius/1000).toFixed(2) + " км" : Math.round(radius) + " м");
+            e.layer.bindTooltip(txt, {{ permanent: true, direction: 'center', className: 'size-tooltip' }}).openTooltip();
+        }}
+    }});
+</script>
+</body>
+</html>
+"""
+
 with col_map:
-    c_lat = st.session_state.data.lat.mean() if not st.session_state.data.empty else 49.0
-    c_lon = st.session_state.data.lon.mean() if not st.session_state.data.empty else 31.0
-    
-    map_obj = create_map(st.session_state.data, c_lat, c_lon, 6 if st.session_state.data.empty else 9)
-    res = st_folium(map_obj, width="100%", height=700, key="rkhb_map", returned_objects=["last_clicked"])
-
-    if res.get("last_clicked"):
-        if st.session_state.clicked_coords != res["last_clicked"]:
-            st.session_state.clicked_coords = res["last_clicked"]
-            st.rerun()
-
-    # Функції під картою
-    c1, c2, c3 = st.columns(3)
-    if c1.button("🗑️ Очистити"):
-        st.session_state.data = pd.DataFrame(columns=["lat","lon","value","unit","time","type","substance"])
-        st.rerun()
-    
-    if not st.session_state.data.empty:
-        c2.download_button("💾 Карта HTML", map_obj._repr_html_(), "map.html", "text/html")
-        c3.download_button("📊 Дані CSV", st.session_state.data.to_csv(index=False), "data.csv", "text/csv")
-        st.dataframe(st.session_state.data, use_container_width=True)
+    # Рендеримо автономний HTML контейнер карти всередині Streamlit
+    components.html(html_map_component, height=750, scrolling=False)
