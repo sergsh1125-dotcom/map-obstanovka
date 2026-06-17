@@ -40,17 +40,18 @@ with col_gui:
         m_lat = st.number_input("Широта (Lat)", value=50.4500, format="%.5f")
         m_lon = st.number_input("Довгота (Lon)", value=30.5200, format="%.5f")
         
-        if m_type == "Радіоактивне":
-            r_val = st.number_input("Показник радіації", value=0.15)
-            r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год"])
-           lbl = f"Радіація: {r_val} {r_uni}"
-            ico = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"
-        else:
-            c_sub = st.text_input("Речовина", value="Іприт")
-            c_val = st.number_input("Концентрація", value=0.1)
-            c_uni = st.selectbox("Одиниця виміру", ["мг/м³", "ppm"])
-            lbl = f"Хімія: {c_sub} {c_val} {c_uni}"
-            ico = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"
+       # Блок вводу оперативного режиму
+    if m_type == "Радіоактивне":
+        r_val = st.number_input("Показник радіації", value=0.15)
+        r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год"])
+        lbl = f"Радіація: {r_val} {r_uni}" # Спрощено тут
+        ico = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg"
+    else:
+        c_sub = st.text_input("Речовина", value="Іприт")
+        c_val = st.number_input("Концентрація", value=0.1)
+        c_uni = st.selectbox("Одиниця виміру", ["мг/м³", "ppm"])
+        lbl = f"Хімія: {c_sub} {c_val} {c_uni}" # І тут
+        ico = "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg"
             
         m_date = st.date_input("Дата розвідки", value=datetime.now()).strftime("%d.%m.%Y")
         
