@@ -39,11 +39,13 @@ if "captured_lat" not in st.session_state:
 if "captured_lng" not in st.session_state:
     st.session_state.captured_lng = 30.5200
 
-# Обробка координат, які прийшли з JavaScript карти через URL-параметри
-query_params = st.query_transform(st.experimental_get_query_params() if hasattr(st, 'experimental_get_query_params') else {})
-if "click_lat" in st.context.query_params:
-    st.session_state.captured_lat = float(st.context.query_params["click_lat"][0])
-    st.session_state.captured_lng = float(st.context.query_params["click_lng"][0])
+# Сучасна обробка координат, які прийшли з карти (Streamlit 1.35+)
+if "click_lat" in st.query_params:
+    try:
+        st.session_state.captured_lat = float(st.query_params["click_lat"])
+        st.session_state.captured_lng = float(st.query_params["click_lng"])
+    except (ValueError, TypeError):
+        pass # Захист на випадок некоректних даних в URL
 
 st.header("☢️ МОДУЛЬ 1: ФАКТИЧНА РХБ ОБСТАНОВКА")
 
