@@ -178,14 +178,14 @@ html_map_component = f"""
     </div>
 
 <script>
-    // 1. Ініціалізація карти OSM
+   // 1. Ініціалізація карти OSM (Подвійні дужки захищають код від помилок Python)
     var map = L.map('map', { zoomControl: true }).setView([48.3, 31.1], 6);
     
-    var osmLayer = L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}.png', {
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19, attribution: '© OpenStreetMap'
     }).addTo(map);
 
-    var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={{x}}&y={{y}}&z={{z}}', {
+    var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
         attribution: '© Google'
     });
 
