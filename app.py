@@ -323,5 +323,8 @@ html_map_component = """
 """
 
 with col_map:
-    # Рендеримо автономний HTML контейнер карти всередині Streamlit
-    components.html(html_map_component, height=750, scrolling=False)
+    # Автоматично замінюємо маркер на реальний JSON з Python без використання f-strings
+    final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
+    
+    # Рендеримо карту
+    components.html(final_html, height=750, scrolling=False)
