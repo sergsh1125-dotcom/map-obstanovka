@@ -318,10 +318,19 @@ html_map_component = """
     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
     var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '© Google' });
 
+    // НАЛАШТУВАННЯ ПАНЕЛІ ІНСТРУМЕНТІВ (ЗАМІНА ГУМКИ НА КОШИК)
     map.pm.addControls({
-        position: 'topleft', drawMarker: false, drawCircleMarker: false, drawPolyline: true,
-        drawRectangle: true, drawPolygon: true, drawCircle: true,
-        editMode: true, dragMode: true, removalMode: true
+        position: 'topleft', 
+        drawMarker: false, 
+        drawCircleMarker: false, 
+        drawPolyline: true,
+        drawRectangle: true, 
+        drawPolygon: true, 
+        drawCircle: true,
+        editMode: true, 
+        dragMode: true, 
+        cutMode: true,       // Дозволяє прорізати отвори в зонах
+        removalMode: true    // САМЕ ЦЕЙ ПАРАМЕТР вмикає стабільний кошик 🗑️ замість гумки
     });
     map.pm.setGlobalOptions({
         measurements: { display: true, radius: true, totalLength: true, segmentLength: true },
