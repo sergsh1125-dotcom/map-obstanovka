@@ -318,7 +318,7 @@ html_map_component = """
     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
     var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '© Google' });
 
-    // НАЛАШТУВАННЯ ПАНЕЛІ ІНСТРУМЕНТІВ (ЗАМІНА ГУМКИ НА КОШИК)
+    // НАЛАШТУВАННЯ ПАНЕЛІ ІНСТРУМЕНТІВ (УВІМКНЕНО СТАБІЛЬНИЙ RemovalMode ЗАМІСТЬ Eraser)
     map.pm.addControls({
         position: 'topleft', 
         drawMarker: false, 
@@ -330,7 +330,7 @@ html_map_component = """
         editMode: true, 
         dragMode: true, 
         cutMode: true,       // Дозволяє прорізати отвори в зонах
-        removalMode: true    // САМЕ ЦЕЙ ПАРАМЕТР вмикає стабільний кошик 🗑️ замість гумки
+        removalMode: true    // Стабільний режим кошика 🗑️
     });
     map.pm.setGlobalOptions({
         measurements: { display: true, radius: true, totalLength: true, segmentLength: true },
@@ -496,13 +496,4 @@ with col_map:
     final_html = final_html.replace("SRC_CBRN_CONTAMINATION_AREA", SRC_CBRN_CONTAMINATION_AREA)
     final_html = final_html.replace("SRC_CBRN_POST", SRC_CBRN_POST)
     final_html = final_html.replace("SRC_CBRN_RECON_AREA", SRC_CBRN_RECON_AREA)
-    final_html = final_html.replace("SRC_CHEMICAL_HAZARD_SITE", SRC_CHEMICAL_HAZARD_SITE)
-    final_html = final_html.replace("SRC_DECON_AREA_SPECIAL", SRC_DECON_AREA_SPECIAL)
-    final_html = final_html.replace("SRC_DECON_POINT_SPECIAL", SRC_DECON_POINT_SPECIAL)
-    final_html = final_html.replace("SRC_DETECT_BIOLOGICAL", SRC_DETECT_BIOLOGICAL)
-    final_html = final_html.replace("SRC_DETECT_CHEMICAL", SRC_DETECT_CHEMICAL)
-    final_html = final_html.replace("SRC_DETECT_RADIATION", SRC_DETECT_RADIATION)
-    final_html = final_html.replace("SRC_NUCLEAR_BLAST", SRC_NUCLEAR_BLAST)
-    final_html = final_html.replace("SRC_RADIOACTIVE_SITE", SRC_RADIOACTIVE_SITE)
-    
-    components.html(final_html, height=720, scrolling=False)
+    final_html = final_html
