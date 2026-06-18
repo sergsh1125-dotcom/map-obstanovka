@@ -70,6 +70,17 @@ if "captured_lat" not in st.session_state:
 if "captured_lng" not in st.session_state:
     st.session_state.captured_lng = 30.5200
 
+# 🛠️ ОБРОБКА КОМАНД ВИДАЛЕННЯ З КАРТИ (ПРИЙОМ СИГНАЛУ ВІД JS)
+if "delete_point_idx" in st.query_params:
+    try:
+        idx_to_del = int(st.query_params["delete_point_idx"])
+        if 0 <= idx_to_del < len(st.session_state.rkhb_points):
+            st.session_state.rkhb_points.pop(idx_to_del)
+        st.query_params.clear()
+        st.rerun()
+    except (ValueError, TypeError):
+        pass
+
 if "click_lat" in st.query_params and "click_lng" in st.query_params:
     try:
         st.session_state.captured_lat = float(st.query_params["click_lat"])
@@ -185,7 +196,7 @@ with col_gui:
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
 # ==========================================
-# 3. HTML/JS КОД КАРТИ LEAFLET (З ФІКСАМИ БАГІВ)
+# 3. HTML/JS КОД КАРТИ LEAFLET (З ФІКСАМИ НАПИСІВ ТА ВИД ПУНКТІВ)
 # ==========================================
 html_map_component = """<!DOCTYPE html>
 <html>
@@ -233,9 +244,11 @@ html_map_component = """<!DOCTYPE html>
         .wind-arrow { font-size: 24px; display: inline-block; transition: transform 0.5s; }
         .wind-info { font-size: 10px; color: #fff; margin-top: 2px; font-weight: bold; }
 
+        /* Стиль таблички радіуса: тепер вона не заважає центру */
         .size-tooltip {
-            background: rgba(0, 0, 0, 0.8) !important; border: 1px solid #FFD600 !important;
-            color: #fff !important; font-weight: bold; font-size: 11px; padding: 3px 6px; border-radius: 4px;
+            background: rgba(0, 0, 0, 0.85) !important; border: 1px solid #FFD600 !important;
+            color: #fff !important; font-weight: bold; font-size: 12px; padding: 4px 8px; border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
         
         .leaflet-div-icon { background: transparent !important; border: none !important; box-shadow: none !important; }
@@ -314,34 +327,21 @@ html_map_component = """<!DOCTYPE html>
     osmLayer.addTo(map);
 
     map.pm.addControls({
-        position: 'topleft', 
-        drawMarker: false, 
-        drawCircleMarker: false, 
-        drawPolyline: true,
-        drawRectangle: true, 
-        drawPolygon: true, 
-        drawCircle: true,
-        editControls: false,
-        customControls: false,
-        optionsControls: false
+        position: 'topleft', drawMarker: false, drawCircleMarker: false, drawPolyline: true,
+        drawRectangle: true, drawPolygon: true, drawCircle: true, editControls: false
     });
 
     map.pm.setGlobalOptions({
-        measurements: { display: true, radius: true, totalLength: true, segmentLength: true },
-        pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.4, weight: 2 },
+        measurements: { display: false }, // вимикаємо стандартний вбудований напис Geoman у центрі
+        pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.35, weight: 2 },
         pinToMarker: true
     });
     map.pm.setLang('uk');
 
-    // 🎯 ФІКС БАГУ 2: Перетягування кола затиснутою кнопкою миші (як на РОБОЧІЙ КАРТІ)
     map.on('pm:drawstart', function(e) {
-        if(e.shape === 'Circle') {
-            // Коли починаємо малювати коло, вимикаємо перетягування самої карти
-            map.dragging.disable();
-        }
+        if(e.shape === 'Circle') map.dragging.disable();
     });
     map.on('pm:drawend', function(e) {
-        // Коли завершили малювання будь-якої фігури, завжди повертаємо рух карти назад
         map.dragging.enable();
     });
 
@@ -349,11 +349,23 @@ html_map_component = """<!DOCTYPE html>
     var dateLayers = {}; 
     var layerControl = L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
 
-    function attachRemovalClick(layer) {
+    // 🎯 ФІКС БАГУ 2: Повне видалення точок з сесії Python, щоб вони не поверталися
+    function attachRemovalClick(layer, pointIndex) {
         layer.on('click', function(e) {
             if (map.pm.globalRemovalModeEnabled()) {
                 L.DomEvent.stopPropagation(e);
                 map.removeLayer(layer);
+                
+                // Якщо у точки є індекс у базі даних Python, надсилаємо сигнал на видалення
+                if (pointIndex !== undefined && pointIndex !== null) {
+                    var url = new URL(window.parent.location.href);
+                    url.searchParams.set('delete_point_idx', pointIndex);
+                    window.parent.history.replaceState({}, '', url);
+                    window.parent.postMessage({
+                        type: "streamlit:set_query_params", 
+                        params: { delete_point_idx: pointIndex.toString() }
+                    }, "*");
+                }
             }
         });
     }
@@ -361,7 +373,7 @@ html_map_component = """<!DOCTYPE html>
     var inputPoints = DATA_FROM_PYTHON;
     
     if(Array.isArray(inputPoints)) {
-        inputPoints.forEach(function(pt) {
+        inputPoints.forEach(function(pt, index) {
             var dateStr = pt.date || "Базові дані";
             if (!dateLayers[dateStr]) {
                 dateLayers[dateStr] = L.layerGroup().addTo(map);
@@ -379,7 +391,7 @@ html_map_component = """<!DOCTYPE html>
                             
             marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 16], className: 'leaflet-div-icon' });
             
-            attachRemovalClick(marker);
+            attachRemovalClick(marker, index); // передаємо індекс точки розвідки
             marker.addTo(dateLayers[dateStr]);
         });
     }
@@ -406,29 +418,13 @@ html_map_component = """<!DOCTYPE html>
         else if(val === "ICO_DECON_AREA_SPECIAL") activeIcon = ico_decon_area_special;
         else if(val === "ICO_DECON_POINT_SPECIAL") activeIcon = ico_decon_point_special;
         else activeIcon = "";
-        
         textMode = false; ellipseMode = false;
-        if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode();
     };
     
-    document.getElementById('textBtn').onclick = function() { 
-        clearModes(); textMode = true; 
-        if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode();
-    };
-    document.getElementById('ellipseBtn').onclick = function() { 
-        clearModes(); ellipseMode = true; 
-        if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode();
-    };
-
-    document.getElementById('stopBtn').onclick = function() { 
-        clearModes(); 
-        if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode();
-    };
-
-    document.getElementById('deleteModeBtn').onclick = function() { 
-        clearModes(); 
-        map.pm.toggleGlobalRemovalMode();
-    };
+    document.getElementById('textBtn').onclick = function() { clearModes(); textMode = true; };
+    document.getElementById('ellipseBtn').onclick = function() { clearModes(); ellipseMode = true; };
+    document.getElementById('stopBtn').onclick = function() { clearModes(); if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode(); };
+    document.getElementById('deleteModeBtn').onclick = function() { clearModes(); map.pm.toggleGlobalRemovalMode(); };
 
     map.on('click', function(e) {
         if (!activeIcon && !textMode && !ellipseMode) {
@@ -442,19 +438,18 @@ html_map_component = """<!DOCTYPE html>
             return;
         }
 
-        // 🎯 ФІКС БАГУ 1: Автоматично скидаємо режим знаку після першого нанесення кліком
         if (activeIcon) {
             var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
-            attachRemovalClick(m);
-            clearModes(); // Скидання, щоб знак не дублювався при випадкових повторних кліках
+            attachRemovalClick(m, null);
+            clearModes();
         }
         if (textMode) {
             var txt = prompt("Введіть оперативно-тактичний підпис:");
             if (txt) {
                 var tm = L.marker(e.latlng, {
-                    icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px; background:transparent;'>" + txt + "</span>" })
+                    icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px;'>" + txt + "</span>" })
                 }).addTo(map);
-                attachRemovalClick(tm);
+                attachRemovalClick(tm, null);
             }
             clearModes();
         }
@@ -482,7 +477,7 @@ html_map_component = """<!DOCTYPE html>
                 points.push([centerLat + latOffset, centerLng + lngOffset]);
             }
             var poly = L.polygon(points, { color: 'black', weight: 1, fillColor: colors[idx], fillOpacity: opacities[idx] }).addTo(map);
-            attachRemovalClick(poly);
+            attachRemovalClick(poly, null);
         });
     }
 
@@ -492,13 +487,28 @@ html_map_component = """<!DOCTYPE html>
         document.getElementById('degInfo').innerText = deg + "°"; document.getElementById('speedInfo').innerText = speed + " м/с";
     };
 
+    // 🎯 ФІКС БАГУ 1: Форматування R=___ км² та винесення за межі центральної точки
     map.on('pm:create', function(e) {
         if (e.shape === 'Circle') {
-            var radius = e.layer.getRadius();
-            var txt = "Радіус: " + (radius >= 1000 ? (radius/1000).toFixed(2) + " км" : Math.round(radius) + " м");
-            e.layer.bindTooltip(txt, { permanent: true, direction: 'center', className: 'size-tooltip' }).openTooltip();
+            var radiusMeters = e.layer.getRadius();
+            var radiusKm = (radiusMeters / 1000).toFixed(2);
+            var labelText = "R = " + radiusKm + " км²";
+            
+            // Отримуємо координати центру та радіус для розрахунку крайньої верхньої точки
+            var center = e.layer.getLatLng();
+            var latOffset = radiusMeters / 111320;
+            var topPoint = L.latLng(center.lat + latOffset, center.lng);
+
+            // Прив'язуємо тултип до кола, але зміщуємо його наверх до межі лінії кола
+            e.layer.bindTooltip(labelText, {
+                permanent: true,
+                direction: 'top',
+                sticky: false,
+                className: 'size-tooltip',
+                offset: [0, -10] // Піднімаємо напис трохи вище лінії межі
+            });
         }
-        attachRemovalClick(e.layer);
+        attachRemovalClick(e.layer, null);
     });
 
     document.getElementById('pngBtn').onclick = function() {
