@@ -74,7 +74,7 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
     except (ValueError, TypeError):
         pass
 
-st.header("☢️ МОДУЛЬ 1: ФАКТИЧНА РХБ ОБСТАНОВКА")
+st.header("☢️ КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
 # ==========================================
@@ -269,7 +269,7 @@ html_map_component = """
                 <option value="TEMP_CHEM">Точка хімічного забруднення</option>
                 <option value="TEMP_BIO">Точка біологічного зараження</option>
                 <option value="TEMP_NUCL">Епіцентр ядерного вибуху</option>
-                <option value="TEMP_POST">Пост спостереження РХБ</option>
+                <option value="TEMP_POST">Пост РХ спостереження</option>
             </select>
             <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">📝 Додати Текст</button>
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">📐 Еліпс AEGL</button>
