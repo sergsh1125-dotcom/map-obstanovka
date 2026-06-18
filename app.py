@@ -38,18 +38,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО РЕПОЗИТОРІЮ GITHUB (RAW ДАНІ)
-# Якщо назва вашого аккаунту чи гілки відрізняється, змініть її тут:
 GITHUB_USER = "sergsh1125-dotcom"
 GITHUB_REPO = "CBRN-panel"
 GITHUB_BRANCH = "main"
 
 GITHUB_BASE_URL = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{GITHUB_BRANCH}/assets/svg"
 
-# Функція генерації URL для знаків з вашого GitHub репозиторію
 def get_gh_svg_url(filename):
     return f"{GITHUB_BASE_URL}/{filename}"
 
-# Завантаження ваших умовних знаків з GitHub папки assets/svg/
 SRC_BIOLOGICAL_HAZARD_SITE  = get_gh_svg_url("biological_hazard_site.svg")
 SRC_CBRN_CONTAMINATION_AREA = get_gh_svg_url("cbrn_contamination_area.svg")
 SRC_CBRN_POST               = get_gh_svg_url("cbrn_post.svg")
@@ -63,7 +60,6 @@ SRC_DETECT_RADIATION        = get_gh_svg_url("detect_radiation.svg")
 SRC_NUCLEAR_BLAST           = get_gh_svg_url("nuclear_blast.svg")
 SRC_RADIOACTIVE_SITE        = get_gh_svg_url("radioactive_site.svg")
 
-# Ініціалізація сесії точок розвідки
 if "rkhb_points" not in st.session_state:
     st.session_state.rkhb_points = [
         {"lat": 50.45, "lng": 30.52, "label": "Хлор - 0.5 мг/м³", "date": "21.05.2026", "icon": SRC_DETECT_CHEMICAL},
@@ -85,9 +81,6 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
 st.header("КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
-# ==========================================
-# 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ (БІЧНА ПАНЕЛЬ)
-# ==========================================
 with col_gui:
     st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
     st.markdown(f"<div class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
@@ -300,25 +293,24 @@ html_map_component = """
     </div>
 
 <script>
-    // Отримання валідних URL адрес знаків з репозиторію
-    var ico_biological_hazard_site  = "SRC_BIOLOGICAL_HAZARD_SITE";
-    var ico_cbrn_contamination_area = "SRC_CBRN_CONTAMINATION_AREA";
-    var ico_cbrn_post               = "SRC_CBRN_POST";
-    var ico_cbrn_recon_area         = "SRC_CBRN_RECON_AREA";
-    var ico_chemical_hazard_site    = "SRC_CHEMICAL_HAZARD_SITE";
-    var ico_decon_area_special       = "SRC_DECON_AREA_SPECIAL";
-    var ico_decon_point_special      = "SRC_DECON_POINT_SPECIAL";
-    var ico_detect_biological       = "SRC_DETECT_BIOLOGICAL";
-    var ico_detect_chemical         = "SRC_DETECT_CHEMICAL";
-    var ico_detect_radiation        = "SRC_DETECT_RADIATION";
-    var ico_nuclear_blast           = "SRC_NUCLEAR_BLAST";
-    var ico_radioactive_site        = "SRC_RADIOACTIVE_SITE";
+    // Приймаємо адреси іконок як прямі JS-рядки БЕЗ зайвих обгорток-лапок
+    var ico_biological_hazard_site  = SRC_BIOLOGICAL_HAZARD_SITE;
+    var ico_cbrn_contamination_area = SRC_CBRN_CONTAMINATION_AREA;
+    var ico_cbrn_post               = SRC_CBRN_POST;
+    var ico_cbrn_recon_area         = SRC_CBRN_RECON_AREA;
+    var ico_chemical_hazard_site    = SRC_CHEMICAL_HAZARD_SITE;
+    var ico_decon_area_special       = SRC_DECON_AREA_SPECIAL;
+    var ico_decon_point_special      = SRC_DECON_POINT_SPECIAL;
+    var ico_detect_biological       = SRC_DETECT_BIOLOGICAL;
+    var ico_detect_chemical         = SRC_DETECT_CHEMICAL;
+    var ico_detect_radiation        = SRC_DETECT_RADIATION;
+    var ico_nuclear_blast           = SRC_NUCLEAR_BLAST;
+    var ico_radioactive_site        = SRC_RADIOACTIVE_SITE;
 
     var map = L.map('map', { zoomControl: true }).setView([48.3, 31.1], 6);
     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
     var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '© Google' });
 
-    // НАЛАШТУВАННЯ ПАНЕЛІ ІНСТРУМЕНТІВ (УВІМКНЕНО СТАБІЛЬНИЙ RemovalMode ЗАМІСТЬ Eraser)
     map.pm.addControls({
         position: 'topleft', 
         drawMarker: false, 
@@ -329,8 +321,8 @@ html_map_component = """
         drawCircle: true,
         editMode: true, 
         dragMode: true, 
-        cutMode: true,       // Дозволяє прорізати отвори в зонах
-        removalMode: true    // Стабільний режим кошика 🗑️
+        cutMode: true,
+        removalMode: true
     });
     map.pm.setGlobalOptions({
         measurements: { display: true, radius: true, totalLength: true, segmentLength: true },
@@ -492,8 +484,17 @@ html_map_component = """
 # ==========================================
 with col_map:
     final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
-    final_html = final_html.replace("SRC_BIOLOGICAL_HAZARD_SITE", SRC_BIOLOGICAL_HAZARD_SITE)
-    final_html = final_html.replace("SRC_CBRN_CONTAMINATION_AREA", SRC_CBRN_CONTAMINATION_AREA)
-    final_html = final_html.replace("SRC_CBRN_POST", SRC_CBRN_POST)
-    final_html = final_html.replace("SRC_CBRN_RECON_AREA", SRC_CBRN_RECON_AREA)
-    final_html = final_html
+    final_html = final_html.replace("SRC_BIOLOGICAL_HAZARD_SITE", f"'{SRC_BIOLOGICAL_HAZARD_SITE}'")
+    final_html = final_html.replace("SRC_CBRN_CONTAMINATION_AREA", f"'{SRC_CBRN_CONTAMINATION_AREA}'")
+    final_html = final_html.replace("SRC_CBRN_POST", f"'{SRC_CBRN_POST}'")
+    final_html = final_html.replace("SRC_CBRN_RECON_AREA", f"'{SRC_CBRN_RECON_AREA}'")
+    final_html = final_html.replace("SRC_CHEMICAL_HAZARD_SITE", f"'{SRC_CHEMICAL_HAZARD_SITE}'")
+    final_html = final_html.replace("SRC_DECON_AREA_SPECIAL", f"'{SRC_DECON_AREA_SPECIAL}'")
+    final_html = final_html.replace("SRC_DECON_POINT_SPECIAL", f"'{SRC_DECON_POINT_SPECIAL}'")
+    final_html = final_html.replace("SRC_DETECT_BIOLOGICAL", f"'{SRC_DETECT_BIOLOGICAL}'")
+    final_html = final_html.replace("SRC_DETECT_CHEMICAL", f"'{SRC_DETECT_CHEMICAL}'")
+    final_html = final_html.replace("SRC_DETECT_RADIATION", f"'{SRC_DETECT_RADIATION}'")
+    final_html = final_html.replace("SRC_NUCLEAR_BLAST", f"'{SRC_NUCLEAR_BLAST}'")
+    final_html = final_html.replace("SRC_RADIOACTIVE_SITE", f"'{SRC_RADIOACTIVE_SITE}'")
+    
+    components.html(final_html, height=720, scrolling=False)
