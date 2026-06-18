@@ -37,11 +37,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО РЕПОЗИТОРІЮ GITHUB (RAW ДАНІ)
+# 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО РЕПОЗИТОРІЮ GITHUB
 GITHUB_USER = "sergsh1125-dotcom"
 GITHUB_REPO = "CBRN-panel"
 GITHUB_BRANCH = "main"
-
 GITHUB_BASE_URL = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{GITHUB_BRANCH}/assets/svg"
 
 def get_gh_svg_url(filename):
@@ -82,7 +81,7 @@ st.header("КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
 # ==========================================
-# 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ (БІЧНА ПАНЕЛЬ)
+# 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ
 # ==========================================
 with col_gui:
     st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
@@ -186,7 +185,7 @@ with col_gui:
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
 # ==========================================
-# 3. HTML/JS КОД КАРТИ LEAFLET (БЕЗ КОНФЛІКТУ ЛАПОК)
+# 3. HTML/JS КОД КАРТИ LEAFLET (З ФІКСАМИ БАГІВ)
 # ==========================================
 html_map_component = """<!DOCTYPE html>
 <html>
@@ -312,6 +311,7 @@ html_map_component = """<!DOCTYPE html>
     var map = L.map('map', { zoomControl: true }).setView([48.3, 31.1], 6);
     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
     var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '© Google' });
+    osmLayer.addTo(map);
 
     map.pm.addControls({
         position: 'topleft', 
@@ -328,9 +328,22 @@ html_map_component = """<!DOCTYPE html>
 
     map.pm.setGlobalOptions({
         measurements: { display: true, radius: true, totalLength: true, segmentLength: true },
-        pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.4, weight: 2 }
+        pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.4, weight: 2 },
+        pinToMarker: true
     });
     map.pm.setLang('uk');
+
+    // 🎯 ФІКС БАГУ 2: Перетягування кола затиснутою кнопкою миші (як на РОБОЧІЙ КАРТІ)
+    map.on('pm:drawstart', function(e) {
+        if(e.shape === 'Circle') {
+            // Коли починаємо малювати коло, вимикаємо перетягування самої карти
+            map.dragging.disable();
+        }
+    });
+    map.on('pm:drawend', function(e) {
+        // Коли завершили малювання будь-якої фігури, завжди повертаємо рух карти назад
+        map.dragging.enable();
+    });
 
     var baseMaps = { "🗺️ Карта OSM": osmLayer, "🛰️ Супутник Google": satLayer };
     var dateLayers = {}; 
@@ -429,9 +442,11 @@ html_map_component = """<!DOCTYPE html>
             return;
         }
 
+        // 🎯 ФІКС БАГУ 1: Автоматично скидаємо режим знаку після першого нанесення кліком
         if (activeIcon) {
             var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
             attachRemovalClick(m);
+            clearModes(); // Скидання, щоб знак не дублювався при випадкових повторних кліках
         }
         if (textMode) {
             var txt = prompt("Введіть оперативно-тактичний підпис:");
@@ -441,12 +456,14 @@ html_map_component = """<!DOCTYPE html>
                 }).addTo(map);
                 attachRemovalClick(tm);
             }
+            clearModes();
         }
         if (ellipseMode) {
-            var rX = prompt("Довжина зони AEGL (метри за вітром):", "4000"); if (!rX) return;
-            var rY = prompt("Ширина зони AEGL (метри бокова):", "1500"); if (!rY) return;
+            var rX = prompt("Довжина зони AEGL (метри за вітром):", "4000"); if (!rX) { clearModes(); return; }
+            var rY = prompt("Ширина зони AEGL (метри бокова):", "1500"); if (!rY) { clearModes(); return; }
             var deg = parseFloat(document.getElementById('wDegInput').value) || 0;
             drawCbrnEllipse(e.latlng.lat, e.latlng.lng, parseFloat(rX), parseFloat(rY), deg);
+            clearModes();
         }
     });
 
