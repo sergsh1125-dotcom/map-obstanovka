@@ -1,14 +1,13 @@
 import streamlit as st
 import pandas as pd
 import json
-import os
 from datetime import datetime
 import streamlit.components.v1 as components
 
 # ==========================================
 # 1. НАЛАШТУВАННЯ СТОРІНКИ ТА СТИЛІВ STREAMLIT
 # ==========================================
-st.set_page_config(page_title="РХБ ОБСТАНОВКА", layout="wide")
+st.set_page_config(page_title="Платформа ХБРЯ", layout="wide")
 
 st.markdown("""
 <style>
@@ -38,28 +37,37 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 📂 СТРУКТУРА ЛОКАЛЬНИХ УМОВНИХ ЗНАКІВ
-LOCAL_SVG_DIR = "assets/svg"
-if not os.path.exists(LOCAL_SVG_DIR):
-    os.makedirs(LOCAL_SVG_DIR)
+# 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО РЕПОЗИТОРІЮ GITHUB (RAW ДАНІ)
+# Якщо назва вашого аккаунту чи гілки відрізняється, змініть її тут:
+GITHUB_USER = "sergsh1125-dotcom"
+GITHUB_REPO = "CBRN-panel"
+GITHUB_BRANCH = "main"
 
-def get_icon_url(filename, backup_url):
-    local_path = os.path.join(LOCAL_SVG_DIR, filename)
-    if os.path.exists(local_path):
-        return f"/app/static/{LOCAL_SVG_DIR}/{filename}"
-    return backup_url
+GITHUB_BASE_URL = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{GITHUB_BRANCH}/assets/svg"
 
-SRC_RADIATION = get_icon_url("detect_radiation.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_radiation.svg")
-SRC_CHEMICAL = get_icon_url("detect_chemical.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_chemical.svg")
-SRC_BIOLOGICAL = get_icon_url("detect_biological.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/detect_biological.svg")
-SRC_NUCLEAR = get_icon_url("nuclear_blast.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/nuclear_blast.svg")
-SRC_POST = get_icon_url("cbrn_post.svg", "https://raw.githubusercontent.com/sergsh1125-dotcom/CBRN-panel/main/assets/svg/cbrn_post.svg")
+# Функція генерації URL для знаків з вашого GitHub репозиторію
+def get_gh_svg_url(filename):
+    return f"{GITHUB_BASE_URL}/{filename}"
+
+# Завантаження ваших умовних знаків з GitHub папки assets/svg/
+SRC_BIOLOGICAL_HAZARD_SITE  = get_gh_svg_url("biological_hazard_site.svg")
+SRC_CBRN_CONTAMINATION_AREA = get_gh_svg_url("cbrn_contamination_area.svg")
+SRC_CBRN_POST               = get_gh_svg_url("cbrn_post.svg")
+SRC_CBRN_RECON_AREA         = get_gh_svg_url("cbrn_recon_area.svg")
+SRC_CHEMICAL_HAZARD_SITE    = get_gh_svg_url("chemical_hazard_site.svg")
+SRC_DECON_AREA_SPECIAL       = get_gh_svg_url("decon_area_special.svg")
+SRC_DECON_POINT_SPECIAL      = get_gh_svg_url("decon_point_special.svg")
+SRC_DETECT_BIOLOGICAL       = get_gh_svg_url("detect_biological.svg")
+SRC_DETECT_CHEMICAL         = get_gh_svg_url("detect_chemical.svg")
+SRC_DETECT_RADIATION        = get_gh_svg_url("detect_radiation.svg")
+SRC_NUCLEAR_BLAST           = get_gh_svg_url("nuclear_blast.svg")
+SRC_RADIOACTIVE_SITE        = get_gh_svg_url("radioactive_site.svg")
 
 # Ініціалізація сесії точок розвідки
 if "rkhb_points" not in st.session_state:
     st.session_state.rkhb_points = [
-        {"lat": 50.45, "lng": 30.52, "label": "Хлор - 0.5 мг/м³", "date": "21.05.2026", "icon": SRC_CHEMICAL},
-        {"lat": 50.46, "lng": 30.53, "label": "200.0 мЗв/год", "date": "21.05.2026", "icon": SRC_RADIATION}
+        {"lat": 50.45, "lng": 30.52, "label": "Хлор - 0.5 мг/м³", "date": "21.05.2026", "icon": SRC_DETECT_CHEMICAL},
+        {"lat": 50.46, "lng": 30.53, "label": "200.0 мЗв/год", "date": "21.05.2026", "icon": SRC_DETECT_RADIATION}
     ]
 
 if "captured_lat" not in st.session_state:
@@ -74,7 +82,7 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
     except (ValueError, TypeError):
         pass
 
-st.header("☢️ КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ")
+st.header("☢️ МОДУЛЬ 1: ФАКТИЧНА РХБ ОБСТАНОВКА")
 col_map, col_gui = st.columns([3, 1])
 
 # ==========================================
@@ -93,13 +101,13 @@ with col_gui:
             r_val = st.number_input("Показник радіації", value=0.15, step=0.01)
             r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год"])
             lbl = f"{r_val} {r_uni}"
-            ico = SRC_RADIATION
+            ico = SRC_DETECT_RADIATION
         else:
             c_sub = st.text_input("Речовина", value="Іприт")
             c_val = st.number_input("Концентрація", value=0.10, step=0.01)
             c_uni = st.selectbox("Одиниця виміру", ["мг/м³", "ppm"])
             lbl = f"{c_sub} - {c_val} {c_uni}"
-            ico = SRC_CHEMICAL
+            ico = SRC_DETECT_CHEMICAL
             
         m_date = datetime.now().strftime("%d.%m.%Y")
         st.caption(f"📅 Дата фіксації (авто): {m_date}")
@@ -128,10 +136,8 @@ with col_gui:
             
             st.markdown('<div class="import-btn">', unsafe_allow_html=True)
             if st.button("📥 Додати точки на карту з таблиці"):
-                # Нормалізуємо назви колонок до нижнього регістру без пробілів
                 df_csv.columns = [col.strip().lower() for col in df_csv.columns]
                 
-                # Точне зіставлення під вашу структуру Tabl_CBRN.csv
                 lat_col = 'lat' if 'lat' in df_csv.columns else None
                 lng_col = 'lon' if 'lon' in df_csv.columns else ('lng' if 'lng' in df_csv.columns else None)
                 val_col = 'value' if 'value' in df_csv.columns else None
@@ -142,13 +148,11 @@ with col_gui:
                 
                 if lat_col and lng_col:
                     for idx, row in df_csv.iterrows():
-                        # Збір чисельника (дані)
                         val_raw = str(row[val_col]).strip() if (val_col and pd.notna(row[val_col])) else ""
                         uni_raw = str(row[uni_col]).strip() if (uni_col and pd.notna(row[uni_col])) else ""
                         sub_raw = str(row[sub_col]).strip() if (sub_col and pd.notna(row[sub_col])) else ""
                         type_str = str(row[typ_col]).strip().lower() if (typ_col and pd.notna(row[typ_col])) else ""
                         
-                        # Формуємо красивий напис для чисельника
                         if sub_raw:
                             label_text = f"{sub_raw.capitalize()} - {val_raw} {uni_raw}"
                         else:
@@ -157,14 +161,14 @@ with col_gui:
                         if not label_text:
                             label_text = "Точка розвідки"
                             
-                        # Збір знаменника (дата)
                         date_text = str(row[tim_col]).strip() if (tim_col and pd.notna(row[tim_col])) else datetime.now().strftime("%d.%m.%Y")
                         
-                        # Визначення типу іконки
                         if "хім" in type_str or "chemical" in type_str or "мг/" in uni_raw or "ppm" in uni_raw:
-                            icon_url = SRC_CHEMICAL
+                            icon_url = SRC_DETECT_CHEMICAL
+                        elif "біо" in type_str or "biological" in type_str:
+                            icon_url = SRC_DETECT_BIOLOGICAL
                         else:
-                            icon_url = SRC_RADIATION
+                            icon_url = SRC_DETECT_RADIATION
 
                         st.session_state.rkhb_points.append({
                             "lat": float(row[lat_col]), "lng": float(row[lng_col]),
@@ -173,7 +177,7 @@ with col_gui:
                     st.success(f"Успішно нанесено {len(df_csv)} точок з вашої таблиці!")
                     st.rerun()
                 else:
-                    st.error("Помилка! Перевірте наявність колонок координат 'lat' та 'lon' у вашій таблиці.")
+                    st.error("Помилка! Перевірте наявність координат 'lat' та 'lon' у вашій таблиці.")
             st.markdown('</div>', unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Помилка читання CSV: {str(e)}")
@@ -262,16 +266,23 @@ html_map_component = """
 
     <div id="bottomControlsPanel">
         <div class="controls-row">
-            <label>🧭 УМОВНІ ЗНАКИ РХБЗ:</label>
+            <label>🧭 ОПЕРАТИВНІ ЗНАКИ З GITHUB:</label>
             <select id="signSelect">
                 <option value="">-- Оберіть умовний знак для встановлення кліком --</option>
-                <option value="TEMP_RAD">Точка радіоактивного забруднення</option>
-                <option value="TEMP_CHEM">Точка хімічного забруднення</option>
-                <option value="TEMP_BIO">Точка біологічного зараження</option>
-                <option value="TEMP_NUCL">Епіцентр ядерного вибуху</option>
-                <option value="TEMP_POST">Пост РХ спостереження</option>
+                <option value="ICO_DETECT_RADIATION">Точка виміру радіації (detect_radiation)</option>
+                <option value="ICO_DETECT_CHEMICAL">Точка виміру хімії (detect_chemical)</option>
+                <option value="ICO_DETECT_BIOLOGICAL">Точка виміру біо (detect_biological)</option>
+                <option value="ICO_CBRN_POST">Пост спостереження РХБ (cbrn_post)</option>
+                <option value="ICO_NUCLEAR_BLAST">Епіцентр ядерного вибуху (nuclear_blast)</option>
+                <option value="ICO_BIOLOGICAL_HAZARD_SITE">Джерело біо-небезпеки (biological_hazard_site)</option>
+                <option value="ICO_CHEMICAL_HAZARD_SITE">Джерело хім-небезпеки (chemical_hazard_site)</option>
+                <option value="ICO_RADIOACTIVE_SITE">Джерело радіоактивності (radioactive_site)</option>
+                <option value="ICO_CBRN_CONTAMINATION_AREA">Район зараження (cbrn_contamination_area)</option>
+                <option value="ICO_CBRN_RECON_AREA">Район розвідки (cbrn_recon_area)</option>
+                <option value="ICO_DECON_AREA_SPECIAL">Район спец. обробки (decon_area_special)</option>
+                <option value="ICO_DECON_POINT_SPECIAL">Пункт спец. обробки (decon_point_special)</option>
             </select>
-            <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">📝 Додати Текст</button>
+            <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">📝 Текст</button>
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">📐 Еліпс AEGL</button>
             <button class="panel-btn btn-stop" id="stopBtn">🛑 СТОП</button>
         </div>
@@ -284,12 +295,24 @@ html_map_component = """
             
             <button class="panel-btn" style="background: #fff59d; border-color:#fbc02d;" id="applyMeteoBtn">🌀 Застосувати</button>
             <button class="panel-btn" style="background: #c8e6c9; border-color:#388e3c; margin-left: 20px;" id="pngBtn">🖼️ Зберегти PNG</button>
-            <button class="panel-btn" style="background: #ffcdd2; border-color:#d32f2f;" id="printBtn">🖨️ Зберегти PDF / Друк</button>
+            <button class="panel-btn" style="background: #ffcdd2; border-color:#d32f2f;" id="printBtn">🖨️ Друк / PDF</button>
         </div>
     </div>
 
 <script>
-    var icoRad = "SRC_RADIATION"; var icoChem = "SRC_CHEMICAL"; var icoBio = "SRC_BIOLOGICAL"; var icoNucl = "SRC_NUCLEAR"; var icoPost = "SRC_POST";
+    // Отримання валідних URL адрес знаків з репозиторію
+    var ico_biological_hazard_site  = "SRC_BIOLOGICAL_HAZARD_SITE";
+    var ico_cbrn_contamination_area = "SRC_CBRN_CONTAMINATION_AREA";
+    var ico_cbrn_post               = "SRC_CBRN_POST";
+    var ico_cbrn_recon_area         = "SRC_CBRN_RECON_AREA";
+    var ico_chemical_hazard_site    = "SRC_CHEMICAL_HAZARD_SITE";
+    var ico_decon_area_special       = "SRC_DECON_AREA_SPECIAL";
+    var ico_decon_point_special      = "SRC_DECON_POINT_SPECIAL";
+    var ico_detect_biological       = "SRC_DETECT_BIOLOGICAL";
+    var ico_detect_chemical         = "SRC_DETECT_CHEMICAL";
+    var ico_detect_radiation        = "SRC_DETECT_RADIATION";
+    var ico_nuclear_blast           = "SRC_NUCLEAR_BLAST";
+    var ico_radioactive_site        = "SRC_RADIOACTIVE_SITE";
 
     var map = L.map('map', { zoomControl: true }).setView([48.3, 31.1], 6);
     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
@@ -310,7 +333,6 @@ html_map_component = """
     var dateLayers = {}; 
     var layerControl = L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
 
-    // Функція інтегрованого тотального видалення кліком при увімкненому смітнику Geoman
     function attachRemovalClick(layer) {
         layer.on('click', function(e) {
             if (map.pm.globalRemovalModeEnabled()) {
@@ -320,7 +342,6 @@ html_map_component = """
         });
     }
 
-    // Рендеринг вхідного стабільного масиву точок (з бази та CSV файлу)
     var inputPoints = DATA_FROM_PYTHON;
     
     if(Array.isArray(inputPoints)) {
@@ -331,7 +352,7 @@ html_map_component = """
                 layerControl.addOverlay(dateLayers[dateStr], "📅 " + dateStr);
             }
             
-            var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [28, 28], iconAnchor: [14, 14] });
+            var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [32, 32], iconAnchor: [16, 16] });
             var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
             
             var labelHtml = "<div class='cbrn-military-lbl'>" + 
@@ -340,7 +361,7 @@ html_map_component = """
                                 "<span class='cbrn-date-sub'>" + dateStr + "</span>" + 
                             "</div>";
                             
-            marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 14], className: 'leaflet-div-icon' });
+            marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 16], className: 'leaflet-div-icon' });
             
             attachRemovalClick(marker);
             marker.addTo(dateLayers[dateStr]);
@@ -356,12 +377,20 @@ html_map_component = """
 
     document.getElementById('signSelect').onchange = function(e) {
         var val = e.target.value;
-        if(val === "TEMP_RAD") activeIcon = icoRad;
-        else if(val === "TEMP_CHEM") activeIcon = icoChem;
-        else if(val === "TEMP_BIO") activeIcon = icoBio;
-        else if(val === "TEMP_NUCL") activeIcon = icoNucl;
-        else if(val === "TEMP_POST") activeIcon = icoPost;
-        else activeIcon = val;
+        if(val === "ICO_DETECT_RADIATION") activeIcon = ico_detect_radiation;
+        else if(val === "ICO_DETECT_CHEMICAL") activeIcon = ico_detect_chemical;
+        else if(val === "ICO_DETECT_BIOLOGICAL") activeIcon = ico_detect_biological;
+        else if(val === "ICO_CBRN_POST") activeIcon = ico_cbrn_post;
+        else if(val === "ICO_NUCLEAR_BLAST") activeIcon = ico_nuclear_blast;
+        else if(val === "ICO_BIOLOGICAL_HAZARD_SITE") activeIcon = ico_biological_hazard_site;
+        else if(val === "ICO_CHEMICAL_HAZARD_SITE") activeIcon = ico_chemical_hazard_site;
+        else if(val === "ICO_RADIOACTIVE_SITE") activeIcon = ico_radioactive_site;
+        else if(val === "ICO_CBRN_CONTAMINATION_AREA") activeIcon = ico_cbrn_contamination_area;
+        else if(val === "ICO_CBRN_RECON_AREA") activeIcon = ico_cbrn_recon_area;
+        else if(val === "ICO_DECON_AREA_SPECIAL") activeIcon = ico_decon_area_special;
+        else if(val === "ICO_DECON_POINT_SPECIAL") activeIcon = ico_decon_point_special;
+        else activeIcon = "";
+        
         textMode = false; ellipseMode = false;
     };
     document.getElementById('textBtn').onclick = function() { textMode = true; ellipseMode = false; activeIcon = ""; document.getElementById('signSelect').value = ""; };
@@ -381,7 +410,7 @@ html_map_component = """
         }
 
         if (activeIcon) {
-            var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(map);
+            var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
             attachRemovalClick(m);
         }
         if (textMode) {
@@ -450,14 +479,21 @@ html_map_component = """
 """
 
 # ==========================================
-# 4. РЕНДЕРИНГ КАРТЫ В STREAMLIT
+# 4. РЕНДЕРИНГ КАРТИ В STREAMLIT
 # ==========================================
 with col_map:
     final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
-    final_html = final_html.replace("SRC_RADIATION", SRC_RADIATION)
-    final_html = final_html.replace("SRC_CHEMICAL", SRC_CHEMICAL)
-    final_html = final_html.replace("SRC_BIOLOGICAL", SRC_BIOLOGICAL)
-    final_html = final_html.replace("SRC_NUCLEAR", SRC_NUCLEAR)
-    final_html = final_html.replace("SRC_POST", SRC_POST)
+    final_html = final_html.replace("SRC_BIOLOGICAL_HAZARD_SITE", SRC_BIOLOGICAL_HAZARD_SITE)
+    final_html = final_html.replace("SRC_CBRN_CONTAMINATION_AREA", SRC_CBRN_CONTAMINATION_AREA)
+    final_html = final_html.replace("SRC_CBRN_POST", SRC_CBRN_POST)
+    final_html = final_html.replace("SRC_CBRN_RECON_AREA", SRC_CBRN_RECON_AREA)
+    final_html = final_html.replace("SRC_CHEMICAL_HAZARD_SITE", SRC_CHEMICAL_HAZARD_SITE)
+    final_html = final_html.replace("SRC_DECON_AREA_SPECIAL", SRC_DECON_AREA_SPECIAL)
+    final_html = final_html.replace("SRC_DECON_POINT_SPECIAL", SRC_DECON_POINT_SPECIAL)
+    final_html = final_html.replace("SRC_DETECT_BIOLOGICAL", SRC_DETECT_BIOLOGICAL)
+    final_html = final_html.replace("SRC_DETECT_CHEMICAL", SRC_DETECT_CHEMICAL)
+    final_html = final_html.replace("SRC_DETECT_RADIATION", SRC_DETECT_RADIATION)
+    final_html = final_html.replace("SRC_NUCLEAR_BLAST", SRC_NUCLEAR_BLAST)
+    final_html = final_html.replace("SRC_RADIOACTIVE_SITE", SRC_RADIOACTIVE_SITE)
     
     components.html(final_html, height=720, scrolling=False)
