@@ -287,7 +287,7 @@ html_map_component = """<!DOCTYPE html>
             <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">Текст</button>
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">Еліпс AEGL</button>
             <button class="panel-btn" style="background: #ffffff; border-color: #616161;" id="stopBtn">✋ СТОП (Скинути знак)</button>
-            <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ВИДАЛИТИ ШАР (КЛІК)</button>
+            <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ВИДАЛИТИ знак (фігуру) </button>
         </div>
         
         <div class="controls-row">
@@ -433,7 +433,7 @@ html_map_component = """<!DOCTYPE html>
             clearModes();
         }
         if (textMode) {
-            var txt = prompt("Введіть оперативно-тактичний підпис:");
+            var txt = prompt("Введіть текст:");
             if (txt) {
                 var tm = L.marker(e.latlng, {
                     icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px;'>" + txt + "</span>" })
