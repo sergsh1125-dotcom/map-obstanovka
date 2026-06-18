@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Creator: CorelDRAW 2020 (64-Bit) -->
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="30mm" height="22mm" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 3000 2200"
+ xmlns:xlink="http://www.w3.org/1999/xlink"
+ xmlns:xodm="http://www.corel.com/coreldraw/odm/2003">
+ <defs>
+  <style type="text/css">
+   <![CDATA[
+    .str0 {stroke:black;stroke-width:52.92;stroke-miterlimit:22.9256}
+    .str1 {stroke:black;stroke-width:20;stroke-miterlimit:22.9256}
+    .fil2 {fill:black}
+    .fil3 {fill:black}
+    .fil0 {fill:aqua}
+    .fil1 {fill:yellow}
+   ]]>
+  </style>
+ </defs>
+ <g id="Слой_x0020_1">
+  <metadata id="CorelCorpID_0Corel-Layer"/>
+  <polygon class="fil0 str0" points="48.27,231.16 1177.76,231.16 1808.07,231.16 2937.59,231.16 2937.59,2160.18 48.27,2160.18 "/>
+  <circle class="fil1 str1" cx="1492.92" cy="1195.67" r="735.26"/>
+  <rect class="fil2 str1" x="1184.83" y="24.7" width="630.33" height="198.83"/>
+  <path class="fil3" d="M928.22 1551.26c-50.95,-88.26 -13.78,-205.13 67.54,-252.08 81.33,-46.94 165.79,-29 223.34,29.53l0 0 103.45 -59.72 46.84 81.11 -103.46 59.73 -0.01 -0.01c21.93,79.12 -4.3,162.03 -85.62,208.98 -81.32,46.95 -201.12,20.72 -252.08,-67.54zm565.28 -981.69c101.92,0 184.53,90.63 184.53,184.54 0,93.9 -58.23,158.08 -137.7,178.65l0 0 0.46 119.45 -93.67 0 0 -119.45 0.01 0c-79.46,-20.57 -138.16,-92.76 -138.16,-178.65 0,-101.92 82.61,-184.54 184.53,-184.54zm564.13 980.62c-50.97,88.26 -170.76,114.5 -252.08,67.55 -81.33,-46.96 -108.02,-129.07 -86.1,-208.18l0 0 -103.45 -59.73 46.84 -81.12 103.44 59.73 0 0c57.56,-58.54 142.48,-77.27 223.81,-30.32 81.31,46.95 118.49,163.8 67.54,252.07zm-569.31 -473.18c80.26,0 145.31,65.06 145.31,145.31 0,80.26 -65.05,145.31 -145.31,145.31 -80.24,0 -145.31,-65.05 -145.31,-145.31 0,-80.25 65.07,-145.31 145.31,-145.31zm79.75 -86.44c123.86,38.76 177.59,147.25 158.79,281.31l-58.22 -28.42c9.29,-94.12 -19.86,-153.72 -100.34,-191.65l-0.23 -61.24zm80.35 411.98c-88.53,85.41 -221.34,86.06 -317.63,13.91l53.84 -31.09c69.23,38.65 149.2,39.45 212.95,-11.92l50.84 29.1zm-388.65 -135.07c-22.97,-114.58 48.05,-233.61 158.31,-274.6l0 60.54c-66.92,34.18 -115.27,115.66 -108.4,190.33l-49.91 23.73z"/>
+ </g>
+</svg>
