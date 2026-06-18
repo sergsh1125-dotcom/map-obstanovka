@@ -81,6 +81,9 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
 st.header("КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
+# ==========================================
+# 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ (БІЧНА ПАНЕЛЬ)
+# ==========================================
 with col_gui:
     st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
     st.markdown(f"<div class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
@@ -277,7 +280,9 @@ html_map_component = """
             </select>
             <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">Текст</button>
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">Еліпс AEGL</button>
-            <button class="panel-btn btn-stop" id="stopBtn">Умовний знак - СТОП</button>
+            
+            <button class="panel-btn" style="background: #ffffff; border-color: #616161;" id="stopBtn">✋ СТОП (Скинути знак)</button>
+            <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ВИДАЛИТИ ШАР (КЛІК)</button>
         </div>
         
         <div class="controls-row">
@@ -293,7 +298,6 @@ html_map_component = """
     </div>
 
 <script>
-    // Приймаємо адреси іконок як прямі JS-рядки БЕЗ зайвих обгорток-лапок
     var ico_biological_hazard_site  = SRC_BIOLOGICAL_HAZARD_SITE;
     var ico_cbrn_contamination_area = SRC_CBRN_CONTAMINATION_AREA;
     var ico_cbrn_post               = SRC_CBRN_POST;
@@ -311,7 +315,7 @@ html_map_component = """
     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
     var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '© Google' });
 
-    // Гарантоване увімкнення кошика та панелі редагування
+    // Стабільне увімкнення виключно інструментів малювання фігур Geoman
     map.pm.addControls({
         position: 'topleft', 
         drawMarker: false, 
@@ -320,17 +324,11 @@ html_map_component = """
         drawRectangle: true, 
         drawPolygon: true, 
         drawCircle: true,
-        
-        // Вмикаємо блоки редагування та видалення окремо:
-        editControls: true,    // це активує кнопки редагування та перетягування
-        customControls: true,  
+        editControls: false,
+        customControls: false,
         optionsControls: false
     });
 
-    // Явно вмикаємо видимість кошика, якщо базовий метод його приховав
-    map.pm.setGlobalOptions({
-        removalMode: true
-    });
     map.pm.setGlobalOptions({
         measurements: { display: true, radius: true, totalLength: true, segmentLength: true },
         pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.4, weight: 2 }
@@ -400,10 +398,29 @@ html_map_component = """
         else activeIcon = "";
         
         textMode = false; ellipseMode = false;
+        if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode();
     };
-    document.getElementById('textBtn').onclick = function() { textMode = true; ellipseMode = false; activeIcon = ""; document.getElementById('signSelect').value = ""; };
-    document.getElementById('ellipseBtn').onclick = function() { ellipseMode = true; textMode = false; activeIcon = ""; document.getElementById('signSelect').value = ""; };
-    document.getElementById('stopBtn').onclick = function() { clearModes(); };
+    
+    document.getElementById('textBtn').onclick = function() { 
+        clearModes(); textMode = true; 
+        if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode();
+    };
+    document.getElementById('ellipseBtn').onclick = function() { 
+        clearModes(); ellipseMode = true; 
+        if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode();
+    };
+
+    // ✋ СТОП: скидає активований режим вставлення знаків та деактивує кошик
+    document.getElementById('stopBtn').onclick = function() { 
+        clearModes(); 
+        if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode();
+    };
+
+    // 🗑️ ВИДАЛЕННЯ: перемикає глобальний режим видалення фігур та знаків кліком
+    document.getElementById('deleteModeBtn').onclick = function() { 
+        clearModes(); 
+        map.pm.toggleGlobalRemovalMode();
+    };
 
     map.on('click', function(e) {
         if (!activeIcon && !textMode && !ellipseMode) {
@@ -418,90 +435,4 @@ html_map_component = """
         }
 
         if (activeIcon) {
-            var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
-            attachRemovalClick(m);
-        }
-        if (textMode) {
-            var txt = prompt("Введіть оперативно-тактичний підпис:");
-            if (txt) {
-                var tm = L.marker(e.latlng, {
-                    icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px; background:transparent;'>" + txt + "</span>" })
-                }).addTo(map);
-                attachRemovalClick(tm);
-            }
-        }
-        if (ellipseMode) {
-            var rX = prompt("Довжина зони AEGL (метри за вітром):", "4000"); if (!rX) return;
-            var rY = prompt("Ширина зони AEGL (метри бокова):", "1500"); if (!rY) return;
-            var deg = parseFloat(document.getElementById('wDegInput').value) || 0;
-            drawCbrnEllipse(e.latlng.lat, e.latlng.lng, parseFloat(rX), parseFloat(rY), deg);
-        }
-    });
-
-    function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {
-        var angles = [1, 0.6, 0.3]; var colors = ["#ffcc00", "#ff9900", "#cc0000"]; var opacities = [0.25, 0.4, 0.6];
-        var windRad = (deg + 180) * Math.PI / 180;
-
-        angles.forEach(function(scale, idx) {
-            var curRx = rx * scale; var curRy = ry * scale; var points = [];
-            for (var i = 0; i <= 64; i++) {
-                var angle = (i / 64) * 2 * Math.PI;
-                var x = curRy * Math.cos(angle); var y = curRx * Math.sin(angle);
-                var rotX = x * Math.cos(windRad) + (y + curRx) * Math.sin(windRad);
-                var rotY = -x * Math.sin(windRad) + (y + curRx) * Math.cos(windRad);
-                var latOffset = rotY / 111320; var lngOffset = rotX / (111320 * Math.cos(centerLat * Math.PI / 180));
-                points.push([centerLat + latOffset, centerLng + lngOffset]);
-            }
-            var poly = L.polygon(points, { color: 'black', weight: 1, fillColor: colors[idx], fillOpacity: opacities[idx] }).addTo(map);
-            attachRemovalClick(poly);
-        });
-    }
-
-    document.getElementById('applyMeteoBtn').onclick = function() {
-        var deg = parseFloat(document.getElementById('wDegInput').value) || 0; var speed = parseFloat(document.getElementById('wSpeedInput').value) || 0;
-        document.getElementById('arrow').style.transform = "rotate(" + ((deg + 180) % 360) + "deg)";
-        document.getElementById('degInfo').innerText = deg + "°"; document.getElementById('speedInfo').innerText = speed + " м/с";
-    };
-
-    map.on('pm:create', function(e) {
-        if (e.shape === 'Circle') {
-            var radius = e.layer.getRadius();
-            var txt = "Радіус: " + (radius >= 1000 ? (radius/1000).toFixed(2) + " км" : Math.round(radius) + " м");
-            e.layer.bindTooltip(txt, { permanent: true, direction: 'center', className: 'size-tooltip' }).openTooltip();
-        }
-        attachRemovalClick(e.layer);
-    });
-
-    document.getElementById('pngBtn').onclick = function() {
-        var container = document.getElementById('mapContainer'); var controls = document.querySelector('.leaflet-control-container');
-        controls.style.display = 'none';
-        html2canvas(container, { useCORS: true, allowTaint: true }).then(function(canvas) {
-            var link = document.createElement('a'); link.download = 'CBRN_Map_Export.png'; link.href = canvas.toDataURL(); link.click();
-            controls.style.display = 'block';
-        });
-    };
-    document.getElementById('printBtn').onclick = function() { window.print(); };
-</script>
-</body>
-</html>
-"""
-
-# ==========================================
-# 4. РЕНДЕРИНГ КАРТИ В STREAMLIT
-# ==========================================
-with col_map:
-    final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
-    final_html = final_html.replace("SRC_BIOLOGICAL_HAZARD_SITE", f"'{SRC_BIOLOGICAL_HAZARD_SITE}'")
-    final_html = final_html.replace("SRC_CBRN_CONTAMINATION_AREA", f"'{SRC_CBRN_CONTAMINATION_AREA}'")
-    final_html = final_html.replace("SRC_CBRN_POST", f"'{SRC_CBRN_POST}'")
-    final_html = final_html.replace("SRC_CBRN_RECON_AREA", f"'{SRC_CBRN_RECON_AREA}'")
-    final_html = final_html.replace("SRC_CHEMICAL_HAZARD_SITE", f"'{SRC_CHEMICAL_HAZARD_SITE}'")
-    final_html = final_html.replace("SRC_DECON_AREA_SPECIAL", f"'{SRC_DECON_AREA_SPECIAL}'")
-    final_html = final_html.replace("SRC_DECON_POINT_SPECIAL", f"'{SRC_DECON_POINT_SPECIAL}'")
-    final_html = final_html.replace("SRC_DETECT_BIOLOGICAL", f"'{SRC_DETECT_BIOLOGICAL}'")
-    final_html = final_html.replace("SRC_DETECT_CHEMICAL", f"'{SRC_DETECT_CHEMICAL}'")
-    final_html = final_html.replace("SRC_DETECT_RADIATION", f"'{SRC_DETECT_RADIATION}'")
-    final_html = final_html.replace("SRC_NUCLEAR_BLAST", f"'{SRC_NUCLEAR_BLAST}'")
-    final_html = final_html.replace("SRC_RADIOACTIVE_SITE", f"'{SRC_RADIOACTIVE_SITE}'")
-    
-    components.html(final_html, height=720, scrolling=False)
+            var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [32, 32],
