@@ -311,20 +311,26 @@ html_map_component = """
     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
     var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '© Google' });
 
-    // Переконайтеся, що налаштування виглядають саме так:
-map.pm.addControls({
-    position: 'topleft', 
-    drawMarker: false, 
-    drawCircleMarker: false, 
-    drawPolyline: true,
-    drawRectangle: true, 
-    drawPolygon: true, 
-    drawCircle: true,
-    editMode: true, 
-    dragMode: true, 
-    cutMode: false,      // зазвичай не потрібен для тактичних схем
-    removalMode: true    // ЯВНО вмикаємо режим видалення (іконка кошика)
-});
+    // Гарантоване увімкнення кошика та панелі редагування
+    map.pm.addControls({
+        position: 'topleft', 
+        drawMarker: false, 
+        drawCircleMarker: false, 
+        drawPolyline: true,
+        drawRectangle: true, 
+        drawPolygon: true, 
+        drawCircle: true,
+        
+        // Вмикаємо блоки редагування та видалення окремо:
+        editControls: true,    // це активує кнопки редагування та перетягування
+        customControls: true,  
+        optionsControls: false
+    });
+
+    // Явно вмикаємо видимість кошика, якщо базовий метод його приховав
+    map.pm.setGlobalOptions({
+        removalMode: true
+    });
     map.pm.setGlobalOptions({
         measurements: { display: true, radius: true, totalLength: true, segmentLength: true },
         pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.4, weight: 2 }
