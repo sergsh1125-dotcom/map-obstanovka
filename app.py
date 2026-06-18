@@ -117,7 +117,7 @@ with col_gui:
             st.rerun()
             
         st.markdown('<div class="clear-btn">', unsafe_allow_html=True)
-        if st.button("🗑️ Очистити "):
+        if st.button("🗑️ Очистити УМОВНІ ЗНАКИ "):
             st.session_state.rkhb_points = []
             st.session_state.captured_lat = 50.4500
             st.session_state.captured_lng = 30.5200
