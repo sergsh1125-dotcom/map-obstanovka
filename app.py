@@ -23,6 +23,9 @@ st.markdown("""
     padding: 12px; border-radius: 6px; text-align: center;
     border: 2px solid #FFD600; font-weight: bold; font-size: 16px; margin-bottom: 15px;
 }
+.info-text {
+    font-size: 13px; color: #e0e0e0; font-style: italic; margin-bottom: 15px; line-height: 1.4;
+}
 .clear-btn button {
     background-color: #ffebee !important; color: #c62828 !important;
     border: 1px solid #ef9a9a !important; margin-top: 10px; height: 2.5em;
@@ -37,7 +40,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО РЕПОЗИТОРІЮ GITHUB
+# 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО REPO GITHUB
 GITHUB_USER = "sergsh1125-dotcom"
 GITHUB_REPO = "CBRN-panel"
 GITHUB_BRANCH = "main"
@@ -59,6 +62,7 @@ SRC_DETECT_RADIATION        = get_gh_svg_url("detect_radiation.svg")
 SRC_NUCLEAR_BLAST           = get_gh_svg_url("nuclear_blast.svg")
 SRC_RADIOACTIVE_SITE        = get_gh_svg_url("radioactive_site.svg")
 
+# Карта запускається повністю ПУСТОЮ за вашим запитом
 if "rkhb_points" not in st.session_state:
     st.session_state.rkhb_points = []
 
@@ -67,7 +71,7 @@ if "captured_lat" not in st.session_state:
 if "captured_lng" not in st.session_state:
     st.session_state.captured_lng = 30.5200
 
-# 🛠️ ОБРОБКА КОМАНД ВИДАЛЕННЯ З КАРТИ (ПРИЙОМ СИГНАЛУ ВІД JS)
+# ОБРОБКА КОМАНД ВИДАЛЕННЯ З КАРТИ
 if "delete_point_idx" in st.query_params:
     try:
         idx_to_del = int(st.query_params["delete_point_idx"])
@@ -93,7 +97,11 @@ col_map, col_gui = st.columns([3, 1])
 # ==========================================
 with col_gui:
     st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
-    st.markdown(f"<div class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
+    # Вставлено інструкцію під назвою панелі управління
+    st.markdown("<div class='info-text'>ℹ️ Для нанесення точки РХ забруднення вручну клікніть у визначеній точці на карті та введіть показники.</div>", unsafe_allow_html=True)
+    
+    # Створюємо контейнер зі стабільним HTML-ідентифікатором для миттєвого оновлення через JS
+    st.markdown(f"<div id='pythonCoordBox' class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
     
     with st.expander("➕ Параметри точки вимірювання", expanded=True):
         m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"])
@@ -140,7 +148,6 @@ with col_gui:
             st.markdown('<div class="import-btn">', unsafe_allow_html=True)
             if st.button("📥 Додати точки на карту з таблиці"):
                 df_csv.columns = [col.strip().lower() for col in df_csv.columns]
-                
                 lat_col = 'lat' if 'lat' in df_csv.columns else None
                 lng_col = 'lon' if 'lon' in df_csv.columns else ('lng' if 'lng' in df_csv.columns else None)
                 val_col = 'value' if 'value' in df_csv.columns else None
@@ -160,9 +167,7 @@ with col_gui:
                             label_text = f"{sub_raw.capitalize()} - {val_raw} {uni_raw}"
                         else:
                             label_text = f"{val_raw} {uni_raw}".strip()
-                        
-                        if not label_text:
-                            label_text = "Точка розвідки"
+                        if not label_text: label_text = "Точка розвідки"
                             
                         date_text = str(row[tim_col]).strip() if (tim_col and pd.notna(row[tim_col])) else datetime.now().strftime("%d.%m.%Y")
                         
@@ -177,23 +182,18 @@ with col_gui:
                             "lat": float(row[lat_col]), "lng": float(row[lng_col]),
                             "label": label_text, "date": date_text, "icon": icon_url
                         })
-                    st.success(f"Успішно нанесено {len(df_csv)} точок з вашої таблиці!")
                     st.rerun()
-                else:
-                    st.error("Помилка! Перевірте наявність координат 'lat' та 'lon' у вашій таблиці.")
-            st.markdown('</div>', unsafe_allow_html=True)
         except Exception as e:
-            st.error(f"Помилка читання CSV: {str(e)}")
+            st.error(f"Помилка: {str(e)}")
 
     if st.session_state.rkhb_points:
         df_view = pd.DataFrame(st.session_state.rkhb_points)
         st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=110)
-        st.download_button("💾 Експорт бази в CSV", df_view.to_csv(index=False), "rkhb_data.csv", "text/csv")
 
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
 # ==========================================
-# 3. HTML/JS КОД КАРТИ LEAFLET (З ФІКСАМИ НАПИСІВ ТА ВИД ПУНКТІВ)
+# 3. HTML/JS КОД КАРТИ LEAFLET (З МИТТЄВИМ ОНОВЛЕННЯМ КООРДИНАТ)
 # ==========================================
 html_map_component = """<!DOCTYPE html>
 <html>
@@ -241,11 +241,9 @@ html_map_component = """<!DOCTYPE html>
         .wind-arrow { font-size: 24px; display: inline-block; transition: transform 0.5s; }
         .wind-info { font-size: 10px; color: #fff; margin-top: 2px; font-weight: bold; }
 
-        /* Стиль таблички радіуса: тепер вона не заважає центру */
         .size-tooltip {
             background: rgba(0, 0, 0, 0.85) !important; border: 1px solid #FFD600 !important;
             color: #fff !important; font-weight: bold; font-size: 12px; padding: 4px 8px; border-radius: 4px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
         
         .leaflet-div-icon { background: transparent !important; border: none !important; box-shadow: none !important; }
@@ -329,7 +327,7 @@ html_map_component = """<!DOCTYPE html>
     });
 
     map.pm.setGlobalOptions({
-        measurements: { display: false }, // вимикаємо стандартний вбудований напис Geoman у центрі
+        measurements: { display: false },
         pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.35, weight: 2 },
         pinToMarker: true
     });
@@ -346,29 +344,22 @@ html_map_component = """<!DOCTYPE html>
     var dateLayers = {}; 
     var layerControl = L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
 
-    // 🎯 ФІКС БАГУ 2: Повне видалення точок з сесії Python, щоб вони не поверталися
     function attachRemovalClick(layer, pointIndex) {
         layer.on('click', function(e) {
             if (map.pm.globalRemovalModeEnabled()) {
                 L.DomEvent.stopPropagation(e);
                 map.removeLayer(layer);
-                
-                // Якщо у точки є індекс у базі даних Python, надсилаємо сигнал на видалення
                 if (pointIndex !== undefined && pointIndex !== null) {
                     var url = new URL(window.parent.location.href);
                     url.searchParams.set('delete_point_idx', pointIndex);
                     window.parent.history.replaceState({}, '', url);
-                    window.parent.postMessage({
-                        type: "streamlit:set_query_params", 
-                        params: { delete_point_idx: pointIndex.toString() }
-                    }, "*");
+                    window.parent.postMessage({type: "streamlit:set_query_params", params: { delete_point_idx: pointIndex.toString() }}, "*");
                 }
             }
         });
     }
 
     var inputPoints = DATA_FROM_PYTHON;
-    
     if(Array.isArray(inputPoints)) {
         inputPoints.forEach(function(pt, index) {
             var dateStr = pt.date || "Базові дані";
@@ -376,25 +367,16 @@ html_map_component = """<!DOCTYPE html>
                 dateLayers[dateStr] = L.layerGroup().addTo(map);
                 layerControl.addOverlay(dateLayers[dateStr], "📅 " + dateStr);
             }
-            
             var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [32, 32], iconAnchor: [16, 16] });
             var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
-            
-            var labelHtml = "<div class='cbrn-military-lbl'>" + 
-                                "<span>" + pt.label + "</span>" + 
-                                "<div class='cbrn-line-divider'></div>" + 
-                                "<span class='cbrn-date-sub'>" + dateStr + "</span>" + 
-                            "</div>";
-                            
+            var labelHtml = "<div class='cbrn-military-lbl'><span>" + pt.label + "</span><div class='cbrn-line-divider'></div><span class='cbrn-date-sub'>" + dateStr + "</span></div>";
             marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 16], className: 'leaflet-div-icon' });
-            
-            attachRemovalClick(marker, index); // передаємо індекс точки розвідки
+            attachRemovalClick(marker, index);
             marker.addTo(dateLayers[dateStr]);
         });
     }
 
     var activeIcon = ""; var textMode = false; var ellipseMode = false;
-
     function clearModes() {
         activeIcon = ""; textMode = false; ellipseMode = false;
         document.getElementById('signSelect').value = "";
@@ -424,9 +406,19 @@ html_map_component = """<!DOCTYPE html>
     document.getElementById('deleteModeBtn').onclick = function() { clearModes(); map.pm.toggleGlobalRemovalMode(); };
 
     map.on('click', function(e) {
+        var lat = e.latlng.lat;
+        var lng = e.latlng.lng;
+
+        // 🎯 МИТТЄВИЙ КЛІК: Міняємо текст прямо в батьківському вікні HTML за секунду
+        if (window.parent && window.parent.document) {
+            var targetBox = window.parent.document.getElementById('pythonCoordBox');
+            if (targetBox) {
+                targetBox.innerHTML = "📍 " + lat.toFixed(5) + " , " + lng.toFixed(5);
+            }
+        }
+
         if (!activeIcon && !textMode && !ellipseMode) {
             if (map.pm.globalRemovalModeEnabled()) return;
-            var lat = e.latlng.lat; var lng = e.latlng.lng;
             var url = new URL(window.parent.location.href);
             url.searchParams.set('click_lat', lat.toFixed(5));
             url.searchParams.set('click_lng', lng.toFixed(5));
@@ -462,7 +454,6 @@ html_map_component = """<!DOCTYPE html>
     function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {
         var angles = [1, 0.6, 0.3]; var colors = ["#ffcc00", "#ff9900", "#cc0000"]; var opacities = [0.25, 0.4, 0.6];
         var windRad = (deg + 180) * Math.PI / 180;
-
         angles.forEach(function(scale, idx) {
             var curRx = rx * scale; var curRy = ry * scale; var points = [];
             for (var i = 0; i <= 64; i++) {
@@ -484,26 +475,15 @@ html_map_component = """<!DOCTYPE html>
         document.getElementById('degInfo').innerText = deg + "°"; document.getElementById('speedInfo').innerText = speed + " м/с";
     };
 
-    // 🎯 ФІКС БАГУ 1: Форматування R=___ км² та винесення за межі центральної точки
     map.on('pm:create', function(e) {
         if (e.shape === 'Circle') {
             var radiusMeters = e.layer.getRadius();
             var radiusKm = (radiusMeters / 1000).toFixed(2);
             var labelText = "R = " + radiusKm + " км²";
-            
-            // Отримуємо координати центру та радіус для розрахунку крайньої верхньої точки
             var center = e.layer.getLatLng();
             var latOffset = radiusMeters / 111320;
             var topPoint = L.latLng(center.lat + latOffset, center.lng);
-
-            // Прив'язуємо тултип до кола, але зміщуємо його наверх до межі лінії кола
-            e.layer.bindTooltip(labelText, {
-                permanent: true,
-                direction: 'top',
-                sticky: false,
-                className: 'size-tooltip',
-                offset: [0, -10] // Піднімаємо напис трохи вище лінії межі
-            });
+            e.layer.bindTooltip(labelText, { permanent: true, direction: 'top', className: 'size-tooltip', offset: [0, -10] });
         }
         attachRemovalClick(e.layer, null);
     });
@@ -532,12 +512,4 @@ with col_map:
     final_html = final_html.replace("SRC_CBRN_POST", f"'{SRC_CBRN_POST}'")
     final_html = final_html.replace("SRC_CBRN_RECON_AREA", f"'{SRC_CBRN_RECON_AREA}'")
     final_html = final_html.replace("SRC_CHEMICAL_HAZARD_SITE", f"'{SRC_CHEMICAL_HAZARD_SITE}'")
-    final_html = final_html.replace("SRC_DECON_AREA_SPECIAL", f"'{SRC_DECON_AREA_SPECIAL}'")
-    final_html = final_html.replace("SRC_DECON_POINT_SPECIAL", f"'{SRC_DECON_POINT_SPECIAL}'")
-    final_html = final_html.replace("SRC_DETECT_BIOLOGICAL", f"'{SRC_DETECT_BIOLOGICAL}'")
-    final_html = final_html.replace("SRC_DETECT_CHEMICAL", f"'{SRC_DETECT_CHEMICAL}'")
-    final_html = final_html.replace("SRC_DETECT_RADIATION", f"'{SRC_DETECT_RADIATION}'")
-    final_html = final_html.replace("SRC_NUCLEAR_BLAST", f"'{SRC_NUCLEAR_BLAST}'")
-    final_html = final_html.replace("SRC_RADIOACTIVE_SITE", f"'{SRC_RADIOACTIVE_SITE}'")
-    
-    components.html(final_html, height=720, scrolling=False)
+    final_html = final_html.replace("SRC_DECON_AREA_SPECIAL", f"'{SRC_
