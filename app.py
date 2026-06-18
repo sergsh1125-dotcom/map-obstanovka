@@ -364,23 +364,4 @@ html_map_component = """<!DOCTYPE html>
             var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [32, 32], iconAnchor: [16, 16] });
             var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
             var labelHtml = "<div class='cbrn-military-lbl'><span>" + pt.label + "</span><div class='cbrn-line-divider'></div><span class='cbrn-date-sub'>" + dateStr + "</span></div>";
-            marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 16], className: 'leaflet-div-icon' });
-            attachRemovalClick(marker, index);
-            marker.addTo(dateLayers[dateStr]);
-        });
-    }
-
-    var activeIcon = ""; var textMode = false; var ellipseMode = false;
-    function clearModes() {
-        activeIcon = ""; textMode = false; ellipseMode = false;
-        document.getElementById('signSelect').value = "";
-    }
-
-    document.getElementById('signSelect').onchange = function(e) {
-        var val = e.target.value;
-        if(val === "ICO_DETECT_RADIATION") activeIcon = ico_detect_radiation;
-        else if(val === "ICO_DETECT_CHEMICAL") activeIcon = ico_detect_chemical;
-        else if(val === "ICO_DETECT_BIOLOGICAL") activeIcon = ico_detect_biological;
-        else if(val === "ICO_CBRN_POST") activeIcon = ico_cbrn_post;
-        else if(val === "ICO_NUCLEAR_BLAST") activeIcon = ico_nuclear_blast;
-        else if(val === "ICO_BIOLOGICAL_HAZARD_SITE") activeIcon = ico_biological
+            marker.bindTooltip(label
