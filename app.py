@@ -364,4 +364,152 @@ html_map_component = """<!DOCTYPE html>
             var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [32, 32], iconAnchor: [16, 16] });
             var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
             var labelHtml = "<div class='cbrn-military-lbl'><span>" + pt.label + "</span><div class='cbrn-line-divider'></div><span class='cbrn-date-sub'>" + dateStr + "</span></div>";
-            marker.bindTooltip(label
+            marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 16], className: 'leaflet-div-icon' });
+            attachRemovalClick(marker, index);
+            marker.addTo(dateLayers[dateStr]);
+        });
+    }
+
+    var activeIcon = ""; var textMode = false; var ellipseMode = false;
+    function clearModes() {
+        activeIcon = ""; textMode = false; ellipseMode = false;
+        document.getElementById('signSelect').value = "";
+    }
+
+    document.getElementById('signSelect').onchange = function(e) {
+        var val = e.target.value;
+        if(val === "ICO_DETECT_RADIATION") activeIcon = ico_detect_radiation;
+        else if(val === "ICO_DETECT_CHEMICAL") activeIcon = ico_detect_chemical;
+        else if(val === "ICO_DETECT_BIOLOGICAL") activeIcon = ico_detect_biological;
+        else if(val === "ICO_CBRN_POST") activeIcon = ico_cbrn_post;
+        else if(val === "ICO_NUCLEAR_BLAST") activeIcon = ico_nuclear_blast;
+        else if(val === "ICO_BIOLOGICAL_HAZARD_SITE") activeIcon = ico_biological_hazard_site;
+        else if(val === "ICO_CHEMICAL_HAZARD_SITE") activeIcon = ico_chemical_hazard_site;
+        else if(val === "ICO_RADIOACTIVE_SITE") activeIcon = ico_radioactive_site;
+        else if(val === "ICO_CBRN_CONTAMINATION_AREA") activeIcon = ico_cbrn_contamination_area;
+        else if(val === "ICO_CBRN_RECON_AREA") activeIcon = ico_cbrn_recon_area;
+        else if(val === "ICO_DECON_AREA_SPECIAL") activeIcon = ico_decon_area_special;
+        else if(val === "ICO_DECON_POINT_SPECIAL") activeIcon = ico_decon_point_special;
+        else activeIcon = "";
+        textMode = false; ellipseMode = false;
+    };
+    
+    document.getElementById('textBtn').onclick = function() { clearModes(); textMode = true; };
+    document.getElementById('ellipseBtn').onclick = function() { clearModes(); ellipseMode = true; };
+    document.getElementById('stopBtn').onclick = function() { clearModes(); if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode(); };
+    document.getElementById('deleteModeBtn').onclick = function() { clearModes(); map.pm.toggleGlobalRemovalMode(); };
+
+    map.on('click', function(e) {
+        var lat = e.latlng.lat;
+        var lng = e.latlng.lng;
+
+        if (window.parent && window.parent.document) {
+            var targetBox = window.parent.document.getElementById('pythonCoordBox');
+            if (targetBox) {
+                targetBox.innerHTML = "📍 " + lat.toFixed(5) + " , " + lng.toFixed(5);
+            }
+        }
+
+        if (!activeIcon && !textMode && !ellipseMode) {
+            if (map.pm.globalRemovalModeEnabled()) return;
+            var url = new URL(window.parent.location.href);
+            url.searchParams.set('click_lat', lat.toFixed(5));
+            url.searchParams.set('click_lng', lng.toFixed(5));
+            window.parent.history.replaceState({}, '', url);
+            window.parent.postMessage({type: "streamlit:set_query_params", params: {click_lat: lat.toFixed(5), click_lng: lng.toFixed(5)}}, "*");
+            return;
+        }
+
+        // 👍 ВИПРАВЛЕНО: Знак та текст не закривають логіку нанесення після першого кліку!
+        if (activeIcon) {
+            var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
+            attachRemovalClick(m, null);
+        }
+        if (textMode) {
+            var txt = prompt("Введіть оперативно-тактичний підпис:");
+            if (txt) {
+                var tm = L.marker(e.latlng, {
+                    icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px;'>"+txt+"</span>" })
+                }).addTo(map);
+                attachRemovalClick(tm, null);
+            }
+        }
+        if (ellipseMode) {
+            var rX = prompt("Довжина зони AEGL (метри за вітром):", "4000"); if (!rX) return;
+            var rY = prompt("Ширина зони AEGL (метри бокова):", "1500"); if (!rY) return;
+            var deg = parseFloat(document.getElementById('wDegInput').value) || 0;
+            drawCbrnEllipse(e.latlng.lat, e.latlng.lng, parseFloat(rX), parseFloat(rY), deg);
+            clearModes(); 
+        }
+    });
+
+    function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {
+        var angles = [1, 0.6, 0.3]; var colors = ["#ffcc00", "#ff9900", "#cc0000"]; var opacities = [0.25, 0.4, 0.6];
+        var windRad = (deg + 180) * Math.PI / 180;
+        angles.forEach(function(scale, idx) {
+            var curRx = rx * scale; var curRy = ry * scale; var points = [];
+            for (var i = 0; i <= 64; i++) {
+                var angle = (i / 64) * 2 * Math.PI;
+                var x = curRy * Math.cos(angle); var y = curRx * Math.sin(angle);
+                var rotX = x * Math.cos(windRad) + (y + curRx) * Math.sin(windRad);
+                var rotY = -x * Math.sin(windRad) + (y + curRx) * Math.cos(windRad);
+                var latOffset = rotY / 111320; var lngOffset = rotX / (111320 * Math.cos(centerLat * Math.PI / 180));
+                points.push([centerLat + latOffset, centerLng + lngOffset]);
+            }
+            var poly = L.polygon(points, { color: 'black', weight: 1, fillColor: colors[idx], fillOpacity: opacities[idx] }).addTo(map);
+            attachRemovalClick(poly, null);
+        });
+    }
+
+    document.getElementById('applyMeteoBtn').onclick = function() {
+        var deg = parseFloat(document.getElementById('wDegInput').value) || 0; var speed = parseFloat(document.getElementById('wSpeedInput').value) || 0;
+        document.getElementById('arrow').style.transform = "rotate(" + ((deg + 180) % 360) + "deg)";
+        document.getElementById('degInfo').innerText = deg + "°"; document.getElementById('speedInfo').innerText = speed + " м/с";
+    };
+
+    map.on('pm:create', function(e) {
+        if (e.shape === 'Circle') {
+            var radiusMeters = e.layer.getRadius();
+            var radiusKm = (radiusMeters / 1000).toFixed(2);
+            var labelText = "R = " + radiusKm + " км²";
+            var center = e.layer.getLatLng();
+            var latOffset = radiusMeters / 111320;
+            var topPoint = L.latLng(center.lat + latOffset, center.lng);
+            e.layer.bindTooltip(labelText, { permanent: true, direction: 'top', className: 'size-tooltip', offset: [0, -10] });
+        }
+        attachRemovalClick(e.layer, null);
+    });
+
+    document.getElementById('pngBtn').onclick = function() {
+        var container = document.getElementById('mapContainer'); var controls = document.querySelector('.leaflet-control-container');
+        controls.style.display = 'none';
+        html2canvas(container, { useCORS: true, allowTaint: true }).then(function(canvas) {
+            var link = document.createElement('a'); link.download = 'CBRN_Map_Export.png'; link.href = canvas.toDataURL(); link.click();
+            controls.style.display = 'block';
+        });
+    };
+    document.getElementById('printBtn').onclick = function() { window.print(); };
+</script>
+</body>
+</html>
+"""
+
+# ==========================================
+# 4. РЕНДЕРИНГ КАРТИ В STREAMLIT
+# ==========================================
+with col_map:
+    final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
+    final_html = final_html.replace("SRC_BIOLOGICAL_HAZARD_SITE", f"'{SRC_BIOLOGICAL_HAZARD_SITE}'")
+    final_html = final_html.replace("SRC_CBRN_CONTAMINATION_AREA", f"'{SRC_CBRN_CONTAMINATION_AREA}'")
+    final_html = final_html.replace("SRC_CBRN_POST", f"'{SRC_CBRN_POST}'")
+    final_html = final_html.replace("SRC_CBRN_RECON_AREA", f"'{SRC_CBRN_RECON_AREA}'")
+    final_html = final_html.replace("SRC_CHEMICAL_HAZARD_SITE", f"'{SRC_CHEMICAL_HAZARD_SITE}'")
+    final_html = final_html.replace("SRC_DECON_AREA_SPECIAL", f"'{SRC_DECON_AREA_SPECIAL}'")
+    final_html = final_html.replace("SRC_DECON_POINT_SPECIAL", f"'{SRC_DECON_POINT_SPECIAL}'")
+    final_html = final_html.replace("SRC_DETECT_BIOLOGICAL", f"'{SRC_DETECT_BIOLOGICAL}'")
+    final_html = final_html.replace("SRC_DETECT_CHEMICAL", f"'{SRC_DETECT_CHEMICAL}'")
+    final_html = final_html.replace("SRC_DETECT_RADIATION", f"'{SRC_DETECT_RADIATION}'")
+    final_html = final_html.replace("SRC_NUCLEAR_BLAST", f"'{SRC_NUCLEAR_BLAST}'")
+    final_html = final_html.replace("SRC_RADIOACTIVE_SITE", f"'{SRC_RADIOACTIVE_SITE}'")
+    
+    components.html(final_html, height=720, scrolling=False)
