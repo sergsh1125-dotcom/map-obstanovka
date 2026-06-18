@@ -262,7 +262,7 @@ html_map_component = """
 
     <div id="bottomControlsPanel">
         <div class="controls-row">
-            <label>🧭 ОПЕРАТИВНІ ЕЛЕМЕНТИ:</label>
+            <label>🧭 УМОВНІ ЗНАКИ РХБЗ:</label>
             <select id="signSelect">
                 <option value="">-- Оберіть умовний знак для встановлення кліком --</option>
                 <option value="TEMP_RAD">Точка радіоактивного забруднення</option>
