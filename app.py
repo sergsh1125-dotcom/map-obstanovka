@@ -512,4 +512,12 @@ with col_map:
     final_html = final_html.replace("SRC_CBRN_POST", f"'{SRC_CBRN_POST}'")
     final_html = final_html.replace("SRC_CBRN_RECON_AREA", f"'{SRC_CBRN_RECON_AREA}'")
     final_html = final_html.replace("SRC_CHEMICAL_HAZARD_SITE", f"'{SRC_CHEMICAL_HAZARD_SITE}'")
-    final_html = final_html.replace("SRC_DECON_AREA_SPECIAL", f"'{SRC_
+    final_html = final_html.replace("SRC_DECON_AREA_SPECIAL", f"'{SRC_DECON_AREA_SPECIAL}'")
+    final_html = final_html.replace("SRC_DECON_POINT_SPECIAL", f"'{SRC_DECON_POINT_SPECIAL}'")
+    final_html = final_html.replace("SRC_DETECT_BIOLOGICAL", f"'{SRC_DETECT_BIOLOGICAL}'")
+    final_html = final_html.replace("SRC_DETECT_CHEMICAL", f"'{SRC_DETECT_CHEMICAL}'")
+    final_html = final_html.replace("SRC_DETECT_RADIATION", f"'{SRC_DETECT_RADIATION}'")
+    final_html = final_html.replace("SRC_NUCLEAR_BLAST", f"'{SRC_NUCLEAR_BLAST}'")
+    final_html = final_html.replace("SRC_RADIOACTIVE_SITE", f"'{SRC_RADIOACTIVE_SITE}'")
+    
+    components.html(final_html, height=720, scrolling=False)
