@@ -98,7 +98,7 @@ with col_gui:
         m_lon = st.number_input("Довгота (Lon)", value=st.session_state.captured_lng, format="%.5f", key=f"lng_{st.session_state.captured_lng}")
         
         if m_type == "Радіоактивне":
-            r_val = st.number_input("Показник радіації", value=0.15, step=0.01)
+            r_val = st.number_input("Потужність дози", value=0.15, step=0.01)
             r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год"])
             lbl = f"{r_val} {r_uni}"
             ico = SRC_DETECT_RADIATION
@@ -117,7 +117,7 @@ with col_gui:
             st.rerun()
             
         st.markdown('<div class="clear-btn">', unsafe_allow_html=True)
-        if st.button("🗑️ Очистити ВСІ точки з карти"):
+        if st.button("🗑️ Очистити карту"):
             st.session_state.rkhb_points = []
             st.session_state.captured_lat = 50.4500
             st.session_state.captured_lng = 30.5200
@@ -266,29 +266,29 @@ html_map_component = """
 
     <div id="bottomControlsPanel">
         <div class="controls-row">
-            <label>🧭 ОПЕРАТИВНІ ЗНАКИ З GITHUB:</label>
+            <label>🧭 УМОВНІ ЗНАКИ РХБЗ:</label>
             <select id="signSelect">
                 <option value="">-- Оберіть умовний знак для встановлення кліком --</option>
-                <option value="ICO_DETECT_RADIATION">Точка виміру радіації (detect_radiation)</option>
-                <option value="ICO_DETECT_CHEMICAL">Точка виміру хімії (detect_chemical)</option>
-                <option value="ICO_DETECT_BIOLOGICAL">Точка виміру біо (detect_biological)</option>
-                <option value="ICO_CBRN_POST">Пост спостереження РХБ (cbrn_post)</option>
+                <option value="ICO_DETECT_RADIATION">Точка рад. забруднення (detect_radiation)</option>
+                <option value="ICO_DETECT_CHEMICAL">Точка хім. забруднення (detect_chemical)</option>
+                <option value="ICO_DETECT_BIOLOGICAL">Точка біо. зараження (detect_biological)</option>
+                <option value="ICO_CBRN_POST">Пост РХ спостереження (cbrn_post)</option>
                 <option value="ICO_NUCLEAR_BLAST">Епіцентр ядерного вибуху (nuclear_blast)</option>
-                <option value="ICO_BIOLOGICAL_HAZARD_SITE">Джерело біо-небезпеки (biological_hazard_site)</option>
-                <option value="ICO_CHEMICAL_HAZARD_SITE">Джерело хім-небезпеки (chemical_hazard_site)</option>
-                <option value="ICO_RADIOACTIVE_SITE">Джерело радіоактивності (radioactive_site)</option>
-                <option value="ICO_CBRN_CONTAMINATION_AREA">Район зараження (cbrn_contamination_area)</option>
-                <option value="ICO_CBRN_RECON_AREA">Район розвідки (cbrn_recon_area)</option>
-                <option value="ICO_DECON_AREA_SPECIAL">Район спец. обробки (decon_area_special)</option>
-                <option value="ICO_DECON_POINT_SPECIAL">Пункт спец. обробки (decon_point_special)</option>
+                <option value="ICO_BIOLOGICAL_HAZARD_SITE">Біологічно небезпечний об'єкт (biological_hazard_site)</option>
+                <option value="ICO_CHEMICAL_HAZARD_SITE">Хімічно небезпечний об'єкт (chemical_hazard_site)</option>
+                <option value="ICO_RADIOACTIVE_SITE">Радіаціно небезпечний об'єкт (radioactive_site)</option>
+                <option value="ICO_CBRN_CONTAMINATION_AREA">Район РХБ забруднення (cbrn_contamination_area)</option>
+                <option value="ICO_CBRN_RECON_AREA">Район РХБЗ розвідки (cbrn_recon_area)</option>
+                <option value="ICO_DECON_AREA_SPECIAL">Район спеціальної обробки (decon_area_special)</option>
+                <option value="ICO_DECON_POINT_SPECIAL">Пункт спеціальної обробки (decon_point_special)</option>
             </select>
-            <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">📝 Текст</button>
-            <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">📐 Еліпс AEGL</button>
-            <button class="panel-btn btn-stop" id="stopBtn">🛑 СТОП</button>
+            <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">Текст</button>
+            <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">Еліпс AEGL</button>
+            <button class="panel-btn btn-stop" id="stopBtn">Умовний знак - СТОП</button>
         </div>
         
         <div class="controls-row">
-            <label>💨 МЕТЕО — Напрямок вітру:</label>
+            <label>МЕТЕО — Напрямок вітру:</label>
             <input type="number" id="wDegInput" placeholder="Градуси (0-360)" min="0" max="360" value="0" style="width:130px;">
             <label>Швидкість вітру:</label>
             <input type="number" id="wSpeedInput" placeholder="м/с" min="0" value="0" step="0.1" style="width:90px;">
