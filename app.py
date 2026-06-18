@@ -60,10 +60,7 @@ SRC_NUCLEAR_BLAST           = get_gh_svg_url("nuclear_blast.svg")
 SRC_RADIOACTIVE_SITE        = get_gh_svg_url("radioactive_site.svg")
 
 if "rkhb_points" not in st.session_state:
-    st.session_state.rkhb_points = [
-        {"lat": 50.45, "lng": 30.52, "label": "Хлор - 0.5 мг/м³", "date": "21.05.2026", "icon": SRC_DETECT_CHEMICAL},
-        {"lat": 50.46, "lng": 30.53, "label": "200.0 мЗв/год", "date": "21.05.2026", "icon": SRC_DETECT_RADIATION}
-    ]
+    st.session_state.rkhb_points = []
 
 if "captured_lat" not in st.session_state:
     st.session_state.captured_lat = 50.4500
