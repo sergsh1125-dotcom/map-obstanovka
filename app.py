@@ -82,7 +82,7 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
     except (ValueError, TypeError):
         pass
 
-st.header("☢️ МОДУЛЬ 1: ФАКТИЧНА РХБ ОБСТАНОВКА")
+st.header("КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
 # ==========================================
@@ -117,7 +117,7 @@ with col_gui:
             st.rerun()
             
         st.markdown('<div class="clear-btn">', unsafe_allow_html=True)
-        if st.button("🗑️ Очистити карту"):
+        if st.button("🗑️ Очистити "):
             st.session_state.rkhb_points = []
             st.session_state.captured_lat = 50.4500
             st.session_state.captured_lng = 30.5200
