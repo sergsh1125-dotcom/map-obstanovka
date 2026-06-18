@@ -89,7 +89,7 @@ col_map, col_gui = st.columns([3, 1])
 # 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ (БІЧНА ПАНЕЛЬ)
 # ==========================================
 with col_gui:
-    st.subheader("⚙️ УПРАВЛІННЯ ДАНИМИ")
+    st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
     st.markdown(f"<div class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
     
     with st.expander("➕ Параметри точки вимірювання", expanded=True):
@@ -117,7 +117,7 @@ with col_gui:
             st.rerun()
             
         st.markdown('<div class="clear-btn">', unsafe_allow_html=True)
-        if st.button("🗑️ Очистити УМОВНІ ЗНАКИ "):
+        if st.button("🗑️ Очистити нанесені точки РХ забруднення "):
             st.session_state.rkhb_points = []
             st.session_state.captured_lat = 50.4500
             st.session_state.captured_lng = 30.5200
