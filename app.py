@@ -203,23 +203,24 @@ html_map_component = """<!DOCTYPE html>
 
     <style>
         html, body { margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; background: #fff; }
-        #mapContainer { width: 100%; height: 580px; position: relative; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
+        #mapContainer { width: 100%; height: 430px; position: relative; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
         #map { width: 100%; height: 100%; }
         
         #bottomControlsPanel {
-            margin-top: 12px; background: #f5f5f5; padding: 12px; border-radius: 8px;
+            margin-top: 8px; background: #f5f5f5; padding: 10px; border-radius: 8px;
             border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            max-height: 240px; overflow-y: auto; /* Дозволяємо внутрішній скрол, якщо елементи перенеслися */
         }
-        .controls-row { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+        .controls-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
         .controls-row:last-child { margin-bottom: 0; }
         
         .controls-row select, .controls-row input {
-            padding: 6px 10px; background: #fff; color: #000; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;
+            padding: 6px 8px; background: #fff; color: #000; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;
         }
         .controls-row label { font-size: 13px; font-weight: bold; color: #333; }
         
         .panel-btn {
-            padding: 6px 12px; background: #e0e0e0; color: #000; border: 1px solid #adadad;
+            padding: 6px 10px; background: #e0e0e0; color: #000; border: 1px solid #adadad;
             border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 5px;
         }
         .panel-btn:hover { background: #d4d4d4; }
@@ -227,13 +228,13 @@ html_map_component = """<!DOCTYPE html>
         .btn-stop:hover { background: #ef9a9a !important; }
 
         #windWidget {
-            position: absolute; bottom: 20px; left: 10px; z-index: 1000;
-            background: rgba(26, 26, 26, 0.9); color: #FFD600; padding: 8px;
-            border-radius: 8px; border: 1px solid #FFD600; text-align: center; width: 80px;
+            position: absolute; bottom: 15px; left: 10px; z-index: 1000;
+            background: rgba(26, 26, 26, 0.9); color: #FFD600; padding: 6px;
+            border-radius: 8px; border: 1px solid #FFD600; text-align: center; width: 70px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.5);
         }
-        .wind-arrow { font-size: 24px; display: inline-block; transition: transform 0.5s; }
-        .wind-info { font-size: 10px; color: #fff; margin-top: 2px; font-weight: bold; }
+        .wind-arrow { font-size: 20px; display: inline-block; transition: transform 0.5s; }
+        .wind-info { font-size: 9px; color: #fff; margin-top: 1px; font-weight: bold; }
 
         .size-tooltip {
             background: rgba(0, 0, 0, 0.85) !important; border: 1px solid #FFD600 !important;
@@ -247,8 +248,16 @@ html_map_component = """<!DOCTYPE html>
         }
         .cbrn-line-divider { border-bottom: 2px solid #000 !important; width: 100%; display: block; margin: 2px 0; }
         .cbrn-date-sub { font-size: 11px; font-weight: bold; color: #000 !important; display: block; }
-    </style>
-</head>
+
+        /* 📱 АДАПТИВНІСТЬ ДЛЯ СМАРТФОНІВ */
+        @media (max-width: 600px) {
+            #mapContainer { height: 350px; } /* Зменшуємо висоту карти на мобільних, щоб звільнити місце кнопкам */
+            .controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } /* Кнопки стають у 2 колонки */
+            .controls-row label { grid-column: span 2; margin-top: 4px; } /* Заголовки на всю ширину */
+            .controls-row select, .controls-row input { width: 100% !important; box-sizing: border-box; }
+            .panel-btn { justify-content: center; width: 100%; box-sizing: border-box; }
+        }
+    </style></head>
 <body>
 
     <div id="mapContainer">
