@@ -280,8 +280,8 @@ html_map_component = """<!DOCTYPE html>
             </select>
             <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">Текст</button>
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">Еліпс AEGL</button>
-            <button class="panel-btn" style="background: #ffffff; border-color: #616161;" id="stopBtn">✋Завершити нанесення умовного знаку </button>
-            <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ВИДАЛИТИ умовний знак, фігуру (КЛІК)</button>
+            <button class="panel-btn" style="background: #ffffff; border-color: #616161;" id="stopBtn">✋ЗАВЕРШИТИ нанесення знаку </button>
+            <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ВИДАЛИТИ (кліком) </button>
         </div>
         
         <div class="controls-row">
