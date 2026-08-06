@@ -40,11 +40,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО REPO GITHUB
+# ==========================================
+# 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО REPO GITHUB (ЧЕРЕЗ JSDELIVR CDN)
+# ==========================================
 GITHUB_USER = "sergsh1125-dotcom"
-GITHUB_REPO = "CBRN-panel"
+GITHUB_REPO = "map-obstanovka"  # 👈 Виправлено назву репозиторію згідно зі скріншотом
 GITHUB_BRANCH = "main"
-GITHUB_BASE_URL = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{GITHUB_BRANCH}/assets/svg"
+
+# Використовуємо CDN jsDelivr для правильної віддачі SVG з правильним MIME-типом
+GITHUB_BASE_URL = f"https://cdn.jsdelivr.net/gh/{GITHUB_USER}/{GITHUB_REPO}@{GITHUB_BRANCH}/assets/svg"
 
 def get_gh_svg_url(filename):
     return f"{GITHUB_BASE_URL}/{filename}"
@@ -54,14 +58,13 @@ SRC_CBRN_CONTAMINATION_AREA = get_gh_svg_url("cbrn_contamination_area.svg")
 SRC_CBRN_POST               = get_gh_svg_url("cbrn_post.svg")
 SRC_CBRN_RECON_AREA         = get_gh_svg_url("cbrn_recon_area.svg")
 SRC_CHEMICAL_HAZARD_SITE    = get_gh_svg_url("chemical_hazard_site.svg")
-SRC_DECON_AREA_SPECIAL       = get_gh_svg_url("decon_area_special.svg")
-SRC_DECON_POINT_SPECIAL      = get_gh_svg_url("decon_point_special.svg")
+SRC_DECON_AREA_SPECIAL      = get_gh_svg_url("decon_area_special.svg")
+SRC_DECON_POINT_SPECIAL     = get_gh_svg_url("decon_point_special.svg")
 SRC_DETECT_BIOLOGICAL       = get_gh_svg_url("detect_biological.svg")
 SRC_DETECT_CHEMICAL         = get_gh_svg_url("detect_chemical.svg")
 SRC_DETECT_RADIATION        = get_gh_svg_url("detect_radiation.svg")
 SRC_NUCLEAR_BLAST           = get_gh_svg_url("nuclear_blast.svg")
 SRC_RADIOACTIVE_SITE        = get_gh_svg_url("radioactive_site.svg")
-
 if "rkhb_points" not in st.session_state:
     st.session_state.rkhb_points = []
 
