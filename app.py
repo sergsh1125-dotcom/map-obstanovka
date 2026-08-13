@@ -294,18 +294,18 @@ html_map_component = """<!DOCTYPE html>
                 <option value="ICO_DECON_AREA_SPECIAL">Район спеціальної обробки (decon_area_special)</option>
                 <option value="ICO_DECON_POINT_SPECIAL">Пункт спеціальної обробки (decon_point_special)</option>
             </select>
-            <button class="panel-btn" style="background: #fff3e0; border-color:#d97706; color:#b45309;" id="reconRouteBtn">✍️ Маршрут (ручний)</button>
+            <button class="panel-btn" style="background: #fff3e0; border-color:#d97706; color:#b45309;" id="reconRouteBtn">Маршрут (ручний режим)</button>
             <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">Текст</button>
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">Еліпс AEGL</button>
             <button class="panel-btn" style="background: #ffffff; border-color: #616161;" id="stopBtn">ЗАВЕРШИТИ знак</button>
             <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ВИДАЛИТИ (кліком)</button>
-            <button class="panel-btn btn-clear-all" id="clearAllMapBtn">💥 ОЧИСТИТИ ВСЮ КАРТУ</button>
+            <button class="panel-btn btn-clear-all" id="clearAllMapBtn">ОЧИСТИТИ ВСЮ КАРТУ</button>
         </div>
         
         <div class="controls-row">
-            <label>🚗 АВТОМАРШРУТ (через ';'):</label>
+            <label>МАРШРУТ (через ';'):</label>
             <input type="text" id="autoRouteInput" placeholder="Наприклад: Київ; Фастів; Житомир" style="flex: 1; min-width: 220px;">
-            <button class="panel-btn btn-autoroute" id="buildAutoRouteBtn">🚗 Прокласти автомаршрут</button>
+            <button class="panel-btn btn-autoroute" id="buildAutoRouteBtn">Маршрут (автоматичний режим)</button>
         </div>
 
         <div class="controls-row">
@@ -481,7 +481,7 @@ html_map_component = """<!DOCTYPE html>
         }
 
         var btn = document.getElementById('buildAutoRouteBtn');
-        var originalBtnText = "🚗 Прокласти автомаршрут";
+        var originalBtnText = "Маршрут (автоматичний режим)";
         
         btn.innerText = "⏳ Пошук та прокладання...";
         btn.disabled = true;
