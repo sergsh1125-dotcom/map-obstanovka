@@ -3,6 +3,7 @@ import pandas as pd
 import json
 from datetime import datetime
 import streamlit.components.v1 as components
+import requests
 
 # ==========================================
 # 1. НАЛАШТУВАННЯ СТОРІНКИ ТА СТИЛІВ STREAMLIT
@@ -65,6 +66,7 @@ SRC_DETECT_CHEMICAL         = get_gh_svg_url("detect_chemical.svg")
 SRC_DETECT_RADIATION        = get_gh_svg_url("detect_radiation.svg")
 SRC_NUCLEAR_BLAST           = get_gh_svg_url("nuclear_blast.svg")
 SRC_RADIOACTIVE_SITE        = get_gh_svg_url("radioactive_site.svg")
+
 if "rkhb_points" not in st.session_state:
     st.session_state.rkhb_points = []
 
@@ -73,7 +75,7 @@ if "captured_lat" not in st.session_state:
 if "captured_lng" not in st.session_state:
     st.session_state.captured_lng = 30.5200
 
-# ОБРОБКА КОМАНД ВИДАЛЕННЯ З КАРТИ
+# OBSHOBA COMMAND DELETE FROM MAP
 if "delete_point_idx" in st.query_params:
     try:
         idx_to_del = int(st.query_params["delete_point_idx"])
@@ -94,6 +96,29 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
 st.header("КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
+# Допоміжні функції для автомаршруту
+def geocode_place(query):
+    query = query.strip()
+    if not query:
+        return None
+    try:
+        parts = query.split(',')
+        if len(parts) == 2:
+            return float(parts[0].strip()), float(parts[1].strip())
+    except ValueError:
+        pass
+    
+    url = f"https://nominatim.openstreetmap.org/search?format=json&q={requests.utils.quote(query)}&limit=1"
+    headers = {"User-Agent": "CBRN_Map_App"}
+    try:
+        res = requests.get(url, headers=headers, timeout=5)
+        data = res.json()
+        if data:
+            return float(data[0]['lat']), float(data[0]['lon'])
+    except Exception:
+        pass
+    return None
+
 # ==========================================
 # 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ
 # ==========================================
@@ -102,6 +127,56 @@ with col_gui:
     st.markdown("<div class='info-text'>ℹ️ Для нанесення точки РХ забруднення вручну клікніть у визначеній точці на карті та введіть показники.</div>", unsafe_allow_html=True)
     st.markdown(f"<div id='pythonCoordBox' class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
     
+    with st.expander("🚗 Автомаршрут розвідки", expanded=False):
+        route_input = st.text_input("Точки (через крапку з комою ';'):", placeholder="Київ; Фастів; Житомир")
+        if st.button("Прокласти автомаршрут"):
+            points_list = [p.strip() for p in route_input.split(';') if p.strip()]
+            if len(points_list) < 2:
+                st.error("Введіть як мінімум 2 точки через ';'")
+            else:
+                coords = []
+                failed = False
+                for p in points_list:
+                    c = geocode_place(p)
+                    if c:
+                        coords.append(c)
+                    else:
+                        st.error(f"Не вдалося знайти: {p}")
+                        failed = True
+                        break
+                if not failed:
+                    try:
+                        coords_str = ";".join([f"{lon},{lat}" for lat, lon in coords])
+                        osrm_url = f"https://router.project-osrm.org/route/v1/driving/{coords_str}?overview=full&geometries=geojson"
+                        r = requests.get(osrm_url, timeout=5)
+                        res_data = r.json()
+                        if res_data.get('code') == 'Ok':
+                            route_data = res_data['routes'][0]
+                            dist_km = round(route_data['distance'] / 1000, 2)
+                            dur_min = round(route_data['duration'] / 60)
+                            
+                            label_name = f"Маршрут: {' ➔ '.join(points_list)} ({dist_km} км, ~{dur_min} хв)"
+                            
+                            geojson_obj = {
+                                "type": "Feature",
+                                "geometry": route_data['geometry'],
+                                "properties": {"name": label_name}
+                            }
+                            
+                            # Додаємо лінію маршруту як спеціальну геометрію в сесію
+                            st.session_state.rkhb_points.append({
+                                "is_route": True,
+                                "geojson": geojson_obj,
+                                "label": label_name,
+                                "date": datetime.now().strftime("%d.%m.%Y")
+                            })
+                            st.success(f"Маршрут успішно побудовано! Відстань: {dist_km} км")
+                            st.rerun()
+                        else:
+                            st.error("Помилка побудови маршруту через OSRM.")
+                    except Exception as ex:
+                        st.error(f"Помилка запиту: {ex}")
+
     with st.expander("➕ Параметри точки вимірювання", expanded=True):
         m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"])
         m_lat = st.number_input("Широта (Lat)", value=st.session_state.captured_lat, format="%.5f", key=f"lat_{st.session_state.captured_lat}")
@@ -184,8 +259,11 @@ with col_gui:
             st.error(f"Помилка: {str(e)}")
 
     if st.session_state.rkhb_points:
-        df_view = pd.DataFrame(st.session_state.rkhb_points)
-        st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=110)
+        # Для коректного табличного перегляду відфільтруємо не маркерні точки
+        pts_only = [p for p in st.session_state.rkhb_points if "lat" in p]
+        if pts_only:
+            df_view = pd.DataFrame(pts_only)
+            st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=110)
 
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
@@ -212,7 +290,7 @@ html_map_component = """<!DOCTYPE html>
         #bottomControlsPanel {
             margin-top: 8px; background: #f5f5f5; padding: 10px; border-radius: 8px;
             border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            max-height: 240px; overflow-y: auto; /* Дозволяємо внутрішній скрол, якщо елементи перенеслися */
+            max-height: 240px; overflow-y: auto;
         }
         .controls-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
         .controls-row:last-child { margin-bottom: 0; }
@@ -244,6 +322,12 @@ html_map_component = """<!DOCTYPE html>
             color: #fff !important; font-weight: bold; font-size: 12px; padding: 4px 8px; border-radius: 4px;
         }
         
+        .route-label {
+            background: rgba(0, 0, 0, 0.85) !important; border: 1px solid #d97706 !important;
+            color: #fff !important; font-size: 11px !important; font-weight: bold !important;
+            padding: 2px 6px !important; border-radius: 4px !important; white-space: nowrap !important;
+        }
+
         .leaflet-div-icon { background: transparent !important; border: none !important; box-shadow: none !important; }
         .cbrn-military-lbl {
             font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; color: #000 !important;
@@ -252,11 +336,10 @@ html_map_component = """<!DOCTYPE html>
         .cbrn-line-divider { border-bottom: 2px solid #000 !important; width: 100%; display: block; margin: 2px 0; }
         .cbrn-date-sub { font-size: 11px; font-weight: bold; color: #000 !important; display: block; }
 
-        /* 📱 АДАПТИВНІСТЬ ДЛЯ СМАРТФОНІВ */
         @media (max-width: 600px) {
-            #mapContainer { height: 350px; } /* Зменшуємо висоту карти на мобільних, щоб звільнити місце кнопкам */
-            .controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } /* Кнопки стають у 2 колонки */
-            .controls-row label { grid-column: span 2; margin-top: 4px; } /* Заголовки на всю ширину */
+            #mapContainer { height: 350px; }
+            .controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+            .controls-row label { grid-column: span 2; margin-top: 4px; }
             .controls-row select, .controls-row input { width: 100% !important; box-sizing: border-box; }
             .panel-btn { justify-content: center; width: 100%; box-sizing: border-box; }
         }
@@ -290,6 +373,7 @@ html_map_component = """<!DOCTYPE html>
                 <option value="ICO_DECON_AREA_SPECIAL">Район спеціальної обробки (decon_area_special)</option>
                 <option value="ICO_DECON_POINT_SPECIAL">Пункт спеціальної обробки (decon_point_special)</option>
             </select>
+            <button class="panel-btn" style="background: #fff3e0; border-color:#d97706; color:#b45309;" id="reconRouteBtn">✍️ Маршрут (ручний)</button>
             <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">Текст</button>
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">Еліпс AEGL</button>
             <button class="panel-btn" style="background: #ffffff; border-color: #616161;" id="stopBtn">ЗАВЕРШИТИ знак</button>
@@ -314,8 +398,8 @@ html_map_component = """<!DOCTYPE html>
     var ico_cbrn_post               = SRC_CBRN_POST;
     var ico_cbrn_recon_area         = SRC_CBRN_RECON_AREA;
     var ico_chemical_hazard_site    = SRC_CHEMICAL_HAZARD_SITE;
-    var ico_decon_area_special       = SRC_DECON_AREA_SPECIAL;
-    var ico_decon_point_special      = SRC_DECON_POINT_SPECIAL;
+    var ico_decon_area_special      = SRC_DECON_AREA_SPECIAL;
+    var ico_decon_point_special     = SRC_DECON_POINT_SPECIAL;
     var ico_detect_biological       = SRC_DETECT_BIOLOGICAL;
     var ico_detect_chemical         = SRC_DETECT_CHEMICAL;
     var ico_detect_radiation        = SRC_DETECT_RADIATION;
@@ -373,19 +457,35 @@ html_map_component = """<!DOCTYPE html>
                 dateLayers[dateStr] = L.layerGroup().addTo(map);
                 layerControl.addOverlay(dateLayers[dateStr], "📅 " + dateStr);
             }
-            var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [32, 32], iconAnchor: [16, 16] });
-            var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
-            var labelHtml = "<div class='cbrn-military-lbl'><span>" + pt.label + "</span><div class='cbrn-line-divider'></div><span class='cbrn-date-sub'>" + dateStr + "</span></div>";
-            marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 16], className: 'leaflet-div-icon' });
-            attachRemovalClick(marker, index);
-            marker.addTo(dateLayers[dateStr]);
+
+            // Малювання звичайних точок РХБЗ
+            if(pt.lat && pt.lng) {
+                var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [32, 32], iconAnchor: [16, 16] });
+                var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
+                var labelHtml = "<div class='cbrn-military-lbl'><span>" + pt.label + "</span><div class='cbrn-line-divider'></div><span class='cbrn-date-sub'>" + dateStr + "</span></div>";
+                marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 16], className: 'leaflet-div-icon' });
+                attachRemovalClick(marker, index);
+                marker.addTo(dateLayers[dateStr]);
+            }
+            // Малювання автомаршрутів з Python
+            else if(pt.is_route && pt.geojson) {
+                var rLayer = L.geoJSON(pt.geojson, {
+                    style: { color: "#d97706", weight: 4, dashArray: "8, 8" }
+                });
+                if(pt.label) {
+                    rLayer.bindTooltip(pt.label, { permanent: true, direction: 'center', className: 'route-label' });
+                }
+                attachRemovalClick(rLayer, index);
+                rLayer.addTo(dateLayers[dateStr]);
+            }
         });
     }
 
-    var activeIcon = ""; var textMode = false; var ellipseMode = false;
+    var activeIcon = ""; var textMode = false; var ellipseMode = false; var isReconMode = false;
     function clearModes() {
-        activeIcon = ""; textMode = false; ellipseMode = false;
+        activeIcon = ""; textMode = false; ellipseMode = false; isReconMode = false;
         document.getElementById('signSelect').value = "";
+        if(map.pm.globalDrawModeEnabled()) map.pm.disableDraw();
     }
 
     document.getElementById('signSelect').onchange = function(e) {
@@ -403,9 +503,18 @@ html_map_component = """<!DOCTYPE html>
         else if(val === "ICO_DECON_AREA_SPECIAL") activeIcon = ico_decon_area_special;
         else if(val === "ICO_DECON_POINT_SPECIAL") activeIcon = ico_decon_point_special;
         else activeIcon = "";
-        textMode = false; ellipseMode = false;
+        textMode = false; ellipseMode = false; isReconMode = false;
     };
     
+    document.getElementById('reconRouteBtn').onclick = function() {
+        clearModes();
+        isReconMode = true;
+        map.pm.enableDraw('Line', {
+            snappable: true,
+            pathOptions: { color: '#d97706', weight: 4, dashArray: '8, 8' }
+        });
+    };
+
     document.getElementById('textBtn').onclick = function() { clearModes(); textMode = true; };
     document.getElementById('ellipseBtn').onclick = function() { clearModes(); ellipseMode = true; };
     document.getElementById('stopBtn').onclick = function() { clearModes(); if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode(); };
@@ -422,7 +531,7 @@ html_map_component = """<!DOCTYPE html>
             }
         }
 
-        if (!activeIcon && !textMode && !ellipseMode) {
+        if (!activeIcon && !textMode && !ellipseMode && !isReconMode) {
             if (map.pm.globalRemovalModeEnabled()) return;
             var url = new URL(window.parent.location.href);
             url.searchParams.set('click_lat', lat.toFixed(5));
@@ -432,7 +541,6 @@ html_map_component = """<!DOCTYPE html>
             return;
         }
 
-        // 👍 ВИПРАВЛЕНО: Знак та текст не закривають логіку нанесення після першого кліку!
         if (activeIcon) {
             var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
             attachRemovalClick(m, null);
@@ -480,7 +588,20 @@ html_map_component = """<!DOCTYPE html>
     };
 
     map.on('pm:create', function(e) {
-        if (e.shape === 'Circle') {
+        if (isReconMode || e.shape === 'Line') {
+            var latlngs = e.layer.getLatLngs();
+            var totalMeters = 0;
+            for (var i = 0; i < latlngs.length - 1; i++) {
+                totalMeters += latlngs[i].distanceTo(latlngs[i + 1]);
+            }
+            var distStr = totalMeters >= 1000 ? (totalMeters / 1000).toFixed(2) + " км" : Math.round(totalMeters) + " м";
+            var routeName = prompt("Введіть номер/назву маршруту розвідки:", "Маршрут розвідки №1");
+            var fullLabel = (routeName ? routeName : "Маршрут розвідки") + " (" + distStr + ")";
+            
+            e.layer.setStyle({ color: '#d97706', weight: 4, dashArray: '8, 8' });
+            e.layer.bindTooltip(fullLabel, { permanent: true, direction: 'center', className: 'route-label' });
+            isReconMode = false;
+        } else if (e.shape === 'Circle') {
             var radiusMeters = e.layer.getRadius();
             var radiusKm = (radiusMeters / 1000).toFixed(2);
             var labelText = "R = " + radiusKm + " км²";
