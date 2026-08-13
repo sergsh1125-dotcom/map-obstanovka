@@ -454,7 +454,7 @@ html_map_component = """<!DOCTYPE html>
         return null;
     }
 
-    // ОБРОБКА КНОПКИ АВТОМАРШРУТУ В JS
+   // ОБРОБКА КНОПКИ АВТОМАРШРУТУ В JS
     document.getElementById('buildAutoRouteBtn').onclick = async function() {
         var inputVal = document.getElementById('autoRouteInput').value.trim();
         if (!inputVal) {
@@ -468,6 +468,8 @@ html_map_component = """<!DOCTYPE html>
         }
 
         var btn = document.getElementById('buildAutoRouteBtn');
+        var originalBtnText = "🚗 Прокласти автомаршрут"; // Зберігаємо початкову назву
+        
         btn.innerText = "⏳ Пошук та прокладання...";
         btn.disabled = true;
 
@@ -486,7 +488,7 @@ html_map_component = """<!DOCTYPE html>
 
         if (failedPoint) {
             alert("Не вдалося знайти населений пункт: '" + failedPoint + "'");
-            btn.innerText = "🚗 Прокласти автомаршрут";
+            btn.innerText = originalBtnText; // Повертаємо вихідний текст
             btn.disabled = false;
             return;
         }
@@ -510,7 +512,7 @@ html_map_component = """<!DOCTYPE html>
                 rLayer.bindTooltip(labelName, { permanent: true, direction: 'center', className: 'route-label' });
                 attachRemovalClick(rLayer, null);
 
-                // Охоплення всієї лінії маршруту на карті
+                // Автоматичне фокусування карти на побудованому маршруті
                 map.fitBounds(rLayer.getBounds(), { padding: [30, 30] });
 
                 alert("Маршрут успішно побудовано! Відстань: " + distKm + " км");
@@ -520,11 +522,10 @@ html_map_component = """<!DOCTYPE html>
         } catch(err) {
             alert("Помилка при побудові маршруту: " + err);
         } finally {
-            btn.innerText = "🚗 Прокласти автомаршрут";
+            btn.innerText = originalBtnText; // Завжди повертаємо початкову назву кнопки
             btn.disabled = false;
         }
     };
-
     document.getElementById('signSelect').onchange = function(e) {
         var val = e.target.value;
         if(val === "ICO_DETECT_RADIATION") activeIcon = ico_detect_radiation;
