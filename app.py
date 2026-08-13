@@ -45,10 +45,9 @@ st.markdown("""
 # 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО REPO GITHUB (ЧЕРЕЗ JSDELIVR CDN)
 # ==========================================
 GITHUB_USER = "sergsh1125-dotcom"
-GITHUB_REPO = "map-obstanovka"  # 👈 Виправлено назву репозиторію згідно зі скріншотом
+GITHUB_REPO = "map-obstanovka"
 GITHUB_BRANCH = "main"
 
-# Використовуємо CDN jsDelivr для правильної віддачі SVG з правильним MIME-типом
 GITHUB_BASE_URL = f"https://cdn.jsdelivr.net/gh/{GITHUB_USER}/{GITHUB_REPO}@{GITHUB_BRANCH}/assets/svg"
 
 def get_gh_svg_url(filename):
@@ -75,7 +74,7 @@ if "captured_lat" not in st.session_state:
 if "captured_lng" not in st.session_state:
     st.session_state.captured_lng = 30.5200
 
-# OBSHOBA COMMAND DELETE FROM MAP
+# ОБРОБКА ВИДАЛЕННЯ ТОЧКИ ЧЕРЕЗ КЛІК НА КАРТІ
 if "delete_point_idx" in st.query_params:
     try:
         idx_to_del = int(st.query_params["delete_point_idx"])
@@ -96,7 +95,6 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
 st.header("КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
-# Допоміжні функції для автомаршруту
 def geocode_place(query):
     query = query.strip()
     if not query:
@@ -146,6 +144,7 @@ with col_gui:
                         break
                 if not failed:
                     try:
+                        # OSRM вимагає формат lon,lat
                         coords_str = ";".join([f"{lon},{lat}" for lat, lon in coords])
                         osrm_url = f"https://router.project-osrm.org/route/v1/driving/{coords_str}?overview=full&geometries=geojson"
                         r = requests.get(osrm_url, timeout=5)
@@ -163,7 +162,6 @@ with col_gui:
                                 "properties": {"name": label_name}
                             }
                             
-                            # Додаємо лінію маршруту як спеціальну геометрію в сесію
                             st.session_state.rkhb_points.append({
                                 "is_route": True,
                                 "geojson": geojson_obj,
@@ -202,7 +200,7 @@ with col_gui:
             st.rerun()
             
         st.markdown('<div class="clear-btn">', unsafe_allow_html=True)
-        if st.button("🗑️ Очистити нанесені точки РХ забруднення "):
+        if st.button("🗑️ Очистити всю карту"):
             st.session_state.rkhb_points = []
             st.session_state.captured_lat = 50.4500
             st.session_state.captured_lng = 30.5200
@@ -259,7 +257,6 @@ with col_gui:
             st.error(f"Помилка: {str(e)}")
 
     if st.session_state.rkhb_points:
-        # Для коректного табличного перегляду відфільтруємо не маркерні точки
         pts_only = [p for p in st.session_state.rkhb_points if "lat" in p]
         if pts_only:
             df_view = pd.DataFrame(pts_only)
@@ -268,7 +265,7 @@ with col_gui:
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
 # ==========================================
-# 3. HTML/JS КОД КАРТИ LEAFLET (З ЦИКЛІЧНИМ НАНЕСЕННЯМ)
+# 3. HTML/JS КОД КАРТИ LEAFLET
 # ==========================================
 html_map_component = """<!DOCTYPE html>
 <html>
@@ -377,7 +374,7 @@ html_map_component = """<!DOCTYPE html>
             <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">Текст</button>
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">Еліпс AEGL</button>
             <button class="panel-btn" style="background: #ffffff; border-color: #616161;" id="stopBtn">ЗАВЕРШИТИ знак</button>
-            <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ОЧИСТИТИ (кліком) </button>
+            <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ВИДАЛИТИ (кліком) </button>
         </div>
         
         <div class="controls-row">
@@ -407,7 +404,7 @@ html_map_component = """<!DOCTYPE html>
     var ico_radioactive_site        = SRC_RADIOACTIVE_SITE;
 
     var map = L.map('map', { zoomControl: true }).setView([48.3, 31.1], 6);
-    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
     var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '© Google' });
     osmLayer.addTo(map);
 
@@ -458,7 +455,6 @@ html_map_component = """<!DOCTYPE html>
                 layerControl.addOverlay(dateLayers[dateStr], "📅 " + dateStr);
             }
 
-            // Малювання звичайних точок РХБЗ
             if(pt.lat && pt.lng) {
                 var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [32, 32], iconAnchor: [16, 16] });
                 var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
@@ -467,7 +463,6 @@ html_map_component = """<!DOCTYPE html>
                 attachRemovalClick(marker, index);
                 marker.addTo(dateLayers[dateStr]);
             }
-            // Малювання автомаршрутів з Python
             else if(pt.is_route && pt.geojson) {
                 var rLayer = L.geoJSON(pt.geojson, {
                     style: { color: "#d97706", weight: 4, dashArray: "8, 8" }
