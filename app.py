@@ -38,6 +38,11 @@ st.markdown("""
     border: 1px solid #388E3C !important;
 }
 .import-btn button:hover { background-color: #45a049 !important; }
+
+.route-section {
+    background-color: #f8f9fa; padding: 15px; border-radius: 8px;
+    border: 1px solid #dcdcdc; margin-top: 15px; margin-bottom: 20px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,77 +111,36 @@ def geocode_place(query):
     except ValueError:
         pass
     
-    url = f"https://nominatim.openstreetmap.org/search?format=json&q={requests.utils.quote(query)}&limit=1"
+    # Якщо користувач не вказав країну, додаємо контекст для кращого пошуку в Україні
+    search_query = query if "україна" in query.lower() or "ukraine" in query.lower() else f"{query}, Україна"
+    
+    url = f"https://nominatim.openstreetmap.org/search?format=json&q={requests.utils.quote(search_query)}&limit=1"
     headers = {"User-Agent": "CBRN_Map_App"}
     try:
         res = requests.get(url, headers=headers, timeout=5)
         data = res.json()
         if data:
             return float(data[0]['lat']), float(data[0]['lon'])
+        
+        # Запасний варіант без додавання країни, якщо первинний запит не дав результату
+        if search_query != query:
+            url_fallback = f"https://nominatim.openstreetmap.org/search?format=json&q={requests.utils.quote(query)}&limit=1"
+            res_fb = requests.get(url_fallback, headers=headers, timeout=5)
+            data_fb = res_fb.json()
+            if data_fb:
+                return float(data_fb[0]['lat']), float(data_fb[0]['lon'])
     except Exception:
         pass
     return None
 
 # ==========================================
-# 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ
+# 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ (ТІЛЬКИ ОБСТАНОВКА)
 # ==========================================
 with col_gui:
     st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
     st.markdown("<div class='info-text'>ℹ️ Для нанесення точки РХ забруднення вручну клікніть у визначеній точці на карті та введіть показники.</div>", unsafe_allow_html=True)
     st.markdown(f"<div id='pythonCoordBox' class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
     
-    # ==========================================
-    # ВІДОБРАЖЕННЯ АВТОМАРШРУТУ (ТЕПЕР ВІДКРИТЕ ЗА ЗАМОВЧУВАННЯМ)
-    # ==========================================
-    with st.expander("🚗 Автомаршрут розвідки", expanded=True):
-        route_input = st.text_input("Точки (через крапку з комою ';'):", placeholder="Київ; Фастів; Житомир", key="auto_route_input")
-        if st.button("Прокласти автомаршрут", key="btn_auto_route"):
-            points_list = [p.strip() for p in route_input.split(';') if p.strip()]
-            if len(points_list) < 2:
-                st.error("Введіть як мінімум 2 точки через ';'")
-            else:
-                coords = []
-                failed = False
-                for p in points_list:
-                    c = geocode_place(p)
-                    if c:
-                        coords.append(c)
-                    else:
-                        st.error(f"Не вдалося знайти: {p}")
-                        failed = True
-                        break
-                if not failed:
-                    try:
-                        # OSRM вимагає формат lon,lat
-                        coords_str = ";".join([f"{lon},{lat}" for lat, lon in coords])
-                        osrm_url = f"https://router.project-osrm.org/route/v1/driving/{coords_str}?overview=full&geometries=geojson"
-                        r = requests.get(osrm_url, timeout=5)
-                        res_data = r.json()
-                        if res_data.get('code') == 'Ok':
-                            route_data = res_data['routes'][0]
-                            dist_km = round(route_data['distance'] / 1000, 2)
-                            dur_min = round(route_data['duration'] / 60)
-                            
-                            label_name = f"Маршрут: {' ➔ '.join(points_list)} ({dist_km} км, ~{dur_min} хв)"
-                            
-                            geojson_obj = {
-                                "type": "Feature",
-                                "geometry": route_data['geometry'],
-                                "properties": {"name": label_name}
-                            }
-                            
-                            st.session_state.rkhb_points.append({
-                                "is_route": True,
-                                "geojson": geojson_obj,
-                                "label": label_name,
-                                "date": datetime.now().strftime("%d.%m.%Y")
-                            })
-                            st.success(f"Маршрут успішно побудовано! Відстань: {dist_km} км")
-                            st.rerun()
-                        else:
-                            st.error("Помилка побудови маршруту через OSRM.")
-                    except Exception as ex:
-                        st.error(f"Помилка запиту: {ex}")
     with st.expander("➕ Параметри точки вимірювання", expanded=True):
         m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"])
         m_lat = st.number_input("Широта (Lat)", value=st.session_state.captured_lat, format="%.5f", key=f"lat_{st.session_state.captured_lat}")
@@ -625,7 +589,7 @@ html_map_component = """<!DOCTYPE html>
 """
 
 # ==========================================
-# 4. РЕНДЕРИНГ КАРТИ В STREAMLIT
+# 4. РЕНДЕРИНГ КАРТИ ТА БЛОКУ АВТОМАРШРУТУ ПІД НЕЮ
 # ==========================================
 with col_map:
     final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
@@ -643,3 +607,59 @@ with col_map:
     final_html = final_html.replace("SRC_RADIOACTIVE_SITE", f"'{SRC_RADIOACTIVE_SITE}'")
     
     components.html(final_html, height=720, scrolling=False)
+
+    # ==========================================
+    # РОЗДІЛ АВТОМАРШРУТУ РОЗВІДКИ ПІД КАРТОЮ
+    # ==========================================
+    st.markdown('<div class="route-section">', unsafe_allow_html=True)
+    st.markdown("### 🚗 Автоматичне прокладання маршруту розвідки")
+    
+    route_input = st.text_input("Введіть населені пункти через крапку з комою (наприклад: Київ; Фастів; Житомир):", placeholder="Київ; Фастів; Житомир", key="auto_route_input")
+    if st.button("Прокласти автомаршрут на карті", key="btn_auto_route"):
+        points_list = [p.strip() for p in route_input.split(';') if p.strip()]
+        if len(points_list) < 2:
+            st.error("Введіть як мінімум 2 точки через ';'")
+        else:
+            coords = []
+            failed = False
+            for p in points_list:
+                c = geocode_place(p)
+                if c:
+                    coords.append(c)
+                else:
+                    st.error(f"Не вдалося знайти населений пункт: '{p}'")
+                    failed = True
+                    break
+            if not failed:
+                try:
+                    # OSRM вимагає формат lon,lat
+                    coords_str = ";".join([f"{lon},{lat}" for lat, lon in coords])
+                    osrm_url = f"https://router.project-osrm.org/route/v1/driving/{coords_str}?overview=full&geometries=geojson"
+                    r = requests.get(osrm_url, timeout=5)
+                    res_data = r.json()
+                    if res_data.get('code') == 'Ok':
+                        route_data = res_data['routes'][0]
+                        dist_km = round(route_data['distance'] / 1000, 2)
+                        dur_min = round(route_data['duration'] / 60)
+                        
+                        label_name = f"Маршрут: {' ➔ '.join(points_list)} ({dist_km} км, ~{dur_min} хв)"
+                        
+                        geojson_obj = {
+                            "type": "Feature",
+                            "geometry": route_data['geometry'],
+                            "properties": {"name": label_name}
+                        }
+                        
+                        st.session_state.rkhb_points.append({
+                            "is_route": True,
+                            "geojson": geojson_obj,
+                            "label": label_name,
+                            "date": datetime.now().strftime("%d.%m.%Y")
+                        })
+                        st.success(f"Маршрут успішно побудовано! Відстань: {dist_km} км")
+                        st.rerun()
+                    else:
+                        st.error("Помилка побудови маршруту через OSRM.")
+                except Exception as ex:
+                    st.error(f"Помилка запиту: {ex}")
+    st.markdown('</div>', unsafe_allow_html=True)
