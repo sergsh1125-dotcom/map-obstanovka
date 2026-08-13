@@ -468,7 +468,7 @@ html_map_component = """<!DOCTYPE html>
         }
 
         var btn = document.getElementById('buildAutoRouteBtn');
-        var originalBtnText = "🚗 Прокласти автомаршрут"; // Зберігаємо початкову назву
+        var originalBtnText = "Маршрут (автоматичний режим)"; // Зберігаємо початкову назву
         
         btn.innerText = "⏳ Пошук та прокладання...";
         btn.disabled = true;
@@ -584,7 +584,7 @@ html_map_component = """<!DOCTYPE html>
             attachRemovalClick(m, null);
         }
         if (textMode) {
-            var txt = prompt("Введіть оперативно-тактичний підпис:");
+            var txt = prompt("Введіть текст:");
             if (txt) {
                 var tm = L.marker(e.latlng, {
                     icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px;'>"+txt+"</span>" })
