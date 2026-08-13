@@ -125,9 +125,12 @@ with col_gui:
     st.markdown("<div class='info-text'>ℹ️ Для нанесення точки РХ забруднення вручну клікніть у визначеній точці на карті та введіть показники.</div>", unsafe_allow_html=True)
     st.markdown(f"<div id='pythonCoordBox' class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
     
-    with st.expander("🚗 Автомаршрут розвідки", expanded=False):
-        route_input = st.text_input("Точки (через крапку з комою ';'):", placeholder="Київ; Фастів; Житомир")
-        if st.button("Прокласти автомаршрут"):
+    # ==========================================
+    # ВІДОБРАЖЕННЯ АВТОМАРШРУТУ (ТЕПЕР ВІДКРИТЕ ЗА ЗАМОВЧУВАННЯМ)
+    # ==========================================
+    with st.expander("🚗 Автомаршрут розвідки", expanded=True):
+        route_input = st.text_input("Точки (через крапку з комою ';'):", placeholder="Київ; Фастів; Житомир", key="auto_route_input")
+        if st.button("Прокласти автомаршрут", key="btn_auto_route"):
             points_list = [p.strip() for p in route_input.split(';') if p.strip()]
             if len(points_list) < 2:
                 st.error("Введіть як мінімум 2 точки через ';'")
@@ -174,7 +177,6 @@ with col_gui:
                             st.error("Помилка побудови маршруту через OSRM.")
                     except Exception as ex:
                         st.error(f"Помилка запиту: {ex}")
-
     with st.expander("➕ Параметри точки вимірювання", expanded=True):
         m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"])
         m_lat = st.number_input("Широта (Lat)", value=st.session_state.captured_lat, format="%.5f", key=f"lat_{st.session_state.captured_lat}")
