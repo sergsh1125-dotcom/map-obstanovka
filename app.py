@@ -3,7 +3,6 @@ import pandas as pd
 import json
 from datetime import datetime
 import streamlit.components.v1 as components
-import requests
 
 # ==========================================
 # 1. НАЛАШТУВАННЯ СТОРІНКИ ТА СТИЛІВ STREAMLIT
@@ -38,11 +37,6 @@ st.markdown("""
     border: 1px solid #388E3C !important;
 }
 .import-btn button:hover { background-color: #45a049 !important; }
-
-.route-section {
-    background-color: #f8f9fa; padding: 15px; border-radius: 8px;
-    border: 1px solid #dcdcdc; margin-top: 15px; margin-bottom: 20px;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -100,41 +94,8 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
 st.header("КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
-def geocode_place(query):
-    query = query.strip()
-    if not query:
-        return None
-    try:
-        parts = query.split(',')
-        if len(parts) == 2:
-            return float(parts[0].strip()), float(parts[1].strip())
-    except ValueError:
-        pass
-    
-    # Якщо користувач не вказав країну, додаємо контекст для кращого пошуку в Україні
-    search_query = query if "україна" in query.lower() or "ukraine" in query.lower() else f"{query}, Україна"
-    
-    url = f"https://nominatim.openstreetmap.org/search?format=json&q={requests.utils.quote(search_query)}&limit=1"
-    headers = {"User-Agent": "CBRN_Map_App"}
-    try:
-        res = requests.get(url, headers=headers, timeout=5)
-        data = res.json()
-        if data:
-            return float(data[0]['lat']), float(data[0]['lon'])
-        
-        # Запасний варіант без додавання країни, якщо первинний запит не дав результату
-        if search_query != query:
-            url_fallback = f"https://nominatim.openstreetmap.org/search?format=json&q={requests.utils.quote(query)}&limit=1"
-            res_fb = requests.get(url_fallback, headers=headers, timeout=5)
-            data_fb = res_fb.json()
-            if data_fb:
-                return float(data_fb[0]['lat']), float(data_fb[0]['lon'])
-    except Exception:
-        pass
-    return None
-
 # ==========================================
-# 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ (ТІЛЬКИ ОБСТАНОВКА)
+# 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ (ПРАВА ПАНЕЛЬ)
 # ==========================================
 with col_gui:
     st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
@@ -253,7 +214,7 @@ html_map_component = """<!DOCTYPE html>
         #bottomControlsPanel {
             margin-top: 8px; background: #f5f5f5; padding: 10px; border-radius: 8px;
             border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            max-height: 240px; overflow-y: auto;
+            max-height: 280px; overflow-y: auto;
         }
         .controls-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
         .controls-row:last-child { margin-bottom: 0; }
@@ -270,6 +231,8 @@ html_map_component = """<!DOCTYPE html>
         .panel-btn:hover { background: #d4d4d4; }
         .btn-stop { background: #ffcdd2 !important; color: #b71c1c !important; border-color: #e57373 !important; }
         .btn-stop:hover { background: #ef9a9a !important; }
+        .btn-autoroute { background: #FFD600 !important; color: #000 !important; border-color: #cca300 !important; }
+        .btn-autoroute:hover { background: #ffea00 !important; }
 
         #windWidget {
             position: absolute; bottom: 15px; left: 10px; z-index: 1000;
@@ -343,6 +306,12 @@ html_map_component = """<!DOCTYPE html>
             <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ВИДАЛИТИ (кліком) </button>
         </div>
         
+        <div class="controls-row">
+            <label>🚗 АВТОМАРШРУТ (через ';'):</label>
+            <input type="text" id="autoRouteInput" placeholder="Наприклад: Київ; Фастів; Житомир" style="flex: 1; min-width: 220px;">
+            <button class="panel-btn btn-autoroute" id="buildAutoRouteBtn">🚗 Прокласти автомаршрут</button>
+        </div>
+
         <div class="controls-row">
             <label>МЕТЕО — Напрямок вітру:</label>
             <input type="number" id="wDegInput" placeholder="Градуси (0-360)" min="0" max="360" value="0" style="width:130px;">
@@ -448,6 +417,113 @@ html_map_component = """<!DOCTYPE html>
         document.getElementById('signSelect').value = "";
         if(map.pm.globalDrawModeEnabled()) map.pm.disableDraw();
     }
+
+    // ПОДВІЙНЕ ГЕОКОДУВАННЯ (PHOTON + NOMINATIM) ДЛЯ НАДІЙНОГО ПОШУКУ
+    async function geocodePlaceJS(query) {
+        if (!query) return null;
+        query = query.trim();
+        
+        var parts = query.split(',');
+        if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+            return { lat: parseFloat(parts[0].trim()), lng: parseFloat(parts[1].trim()) };
+        }
+        
+        var searchStr = (query.toLowerCase().includes("україна") || query.toLowerCase().includes("ukraine")) ? query : query + ", Україна";
+        
+        // 1. Пошук через Photon API
+        try {
+            var pUrl = "https://photon.komoot.io/api/?q=" + encodeURIComponent(searchStr) + "&limit=1";
+            var resP = await fetch(pUrl);
+            var dataP = await resP.json();
+            if (dataP && dataP.features && dataP.features.length > 0) {
+                var coordsP = dataP.features[0].geometry.coordinates;
+                return { lat: coordsP[1], lng: coordsP[0] };
+            }
+        } catch(e) {}
+
+        // 2. Запасний пошук через Nominatim API
+        try {
+            var nUrl = "https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(searchStr) + "&limit=1";
+            var resN = await fetch(nUrl, { headers: { 'Accept-Language': 'uk,en' } });
+            var dataN = await resN.json();
+            if (dataN && dataN.length > 0) {
+                return { lat: parseFloat(dataN[0].lat), lng: parseFloat(dataN[0].lon) };
+            }
+        } catch(e) {}
+
+        return null;
+    }
+
+    // ОБРОБКА КНОПКИ АВТОМАРШРУТУ В JS
+    document.getElementById('buildAutoRouteBtn').onclick = async function() {
+        var inputVal = document.getElementById('autoRouteInput').value.trim();
+        if (!inputVal) {
+            alert("Введіть населені пункти через крапку з комою ';'");
+            return;
+        }
+        var pointsList = inputVal.split(';').map(p => p.trim()).filter(p => p.length > 0);
+        if (pointsList.length < 2) {
+            alert("Введіть як мінімум 2 населені пункти (наприклад: Київ; Житомир)");
+            return;
+        }
+
+        var btn = document.getElementById('buildAutoRouteBtn');
+        btn.innerText = "⏳ Пошук та прокладання...";
+        btn.disabled = true;
+
+        var coords = [];
+        var failedPoint = null;
+
+        for (var p of pointsList) {
+            var c = await geocodePlaceJS(p);
+            if (c) {
+                coords.push(c);
+            } else {
+                failedPoint = p;
+                break;
+            }
+        }
+
+        if (failedPoint) {
+            alert("Не вдалося знайти населений пункт: '" + failedPoint + "'");
+            btn.innerText = "🚗 Прокласти автомаршрут";
+            btn.disabled = false;
+            return;
+        }
+
+        var coordsStr = coords.map(c => c.lng + "," + c.lat).join(";");
+        var osrmUrl = "https://router.project-osrm.org/route/v1/driving/" + coordsStr + "?overview=full&geometries=geojson";
+
+        try {
+            var res = await fetch(osrmUrl);
+            var resData = await res.json();
+            if (resData.code === 'Ok') {
+                var routeData = resData.routes[0];
+                var distKm = (routeData.distance / 1000).toFixed(2);
+                var durMin = Math.round(routeData.duration / 60);
+                var labelName = "Маршрут: " + pointsList.join(" ➔ ") + " (" + distKm + " км, ~" + durMin + " хв)";
+
+                var rLayer = L.geoJSON(routeData.geometry, {
+                    style: { color: "#d97706", weight: 4, dashArray: "8, 8" }
+                }).addTo(map);
+
+                rLayer.bindTooltip(labelName, { permanent: true, direction: 'center', className: 'route-label' });
+                attachRemovalClick(rLayer, null);
+
+                // Охоплення всієї лінії маршруту на карті
+                map.fitBounds(rLayer.getBounds(), { padding: [30, 30] });
+
+                alert("Маршрут успішно побудовано! Відстань: " + distKm + " км");
+            } else {
+                alert("Помилка побудови маршруту через сервер OSRM.");
+            }
+        } catch(err) {
+            alert("Помилка при побудові маршруту: " + err);
+        } finally {
+            btn.innerText = "🚗 Прокласти автомаршрут";
+            btn.disabled = false;
+        }
+    };
 
     document.getElementById('signSelect').onchange = function(e) {
         var val = e.target.value;
@@ -589,7 +665,7 @@ html_map_component = """<!DOCTYPE html>
 """
 
 # ==========================================
-# 4. РЕНДЕРИНГ КАРТИ ТА БЛОКУ АВТОМАРШРУТУ ПІД НЕЮ
+# 4. РЕНДЕРИНГ КАРТИ
 # ==========================================
 with col_map:
     final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
@@ -606,60 +682,4 @@ with col_map:
     final_html = final_html.replace("SRC_NUCLEAR_BLAST", f"'{SRC_NUCLEAR_BLAST}'")
     final_html = final_html.replace("SRC_RADIOACTIVE_SITE", f"'{SRC_RADIOACTIVE_SITE}'")
     
-    components.html(final_html, height=720, scrolling=False)
-
-    # ==========================================
-    # РОЗДІЛ АВТОМАРШРУТУ РОЗВІДКИ ПІД КАРТОЮ
-    # ==========================================
-    st.markdown('<div class="route-section">', unsafe_allow_html=True)
-    st.markdown("### 🚗 Автоматичне прокладання маршруту розвідки")
-    
-    route_input = st.text_input("Введіть населені пункти через крапку з комою (наприклад: Київ; Фастів; Житомир):", placeholder="Київ; Фастів; Житомир", key="auto_route_input")
-    if st.button("Прокласти автомаршрут на карті", key="btn_auto_route"):
-        points_list = [p.strip() for p in route_input.split(';') if p.strip()]
-        if len(points_list) < 2:
-            st.error("Введіть як мінімум 2 точки через ';'")
-        else:
-            coords = []
-            failed = False
-            for p in points_list:
-                c = geocode_place(p)
-                if c:
-                    coords.append(c)
-                else:
-                    st.error(f"Не вдалося знайти населений пункт: '{p}'")
-                    failed = True
-                    break
-            if not failed:
-                try:
-                    # OSRM вимагає формат lon,lat
-                    coords_str = ";".join([f"{lon},{lat}" for lat, lon in coords])
-                    osrm_url = f"https://router.project-osrm.org/route/v1/driving/{coords_str}?overview=full&geometries=geojson"
-                    r = requests.get(osrm_url, timeout=5)
-                    res_data = r.json()
-                    if res_data.get('code') == 'Ok':
-                        route_data = res_data['routes'][0]
-                        dist_km = round(route_data['distance'] / 1000, 2)
-                        dur_min = round(route_data['duration'] / 60)
-                        
-                        label_name = f"Маршрут: {' ➔ '.join(points_list)} ({dist_km} км, ~{dur_min} хв)"
-                        
-                        geojson_obj = {
-                            "type": "Feature",
-                            "geometry": route_data['geometry'],
-                            "properties": {"name": label_name}
-                        }
-                        
-                        st.session_state.rkhb_points.append({
-                            "is_route": True,
-                            "geojson": geojson_obj,
-                            "label": label_name,
-                            "date": datetime.now().strftime("%d.%m.%Y")
-                        })
-                        st.success(f"Маршрут успішно побудовано! Відстань: {dist_km} км")
-                        st.rerun()
-                    else:
-                        st.error("Помилка побудови маршруту через OSRM.")
-                except Exception as ex:
-                    st.error(f"Помилка запиту: {ex}")
-    st.markdown('</div>', unsafe_allow_html=True)
+    components.html(final_html, height=750, scrolling=False)
