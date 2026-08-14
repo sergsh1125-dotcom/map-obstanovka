@@ -26,6 +26,12 @@ st.markdown("""
 .info-text {
     font-size: 13px; color: #e0e0e0; font-style: italic; margin-bottom: 15px; line-height: 1.4;
 }
+.clear-btn button {
+    background-color: #ffebee !important; color: #c62828 !important;
+    border: 1px solid #ef9a9a !important; margin-top: 10px; height: 2.5em;
+}
+.clear-btn button:hover { background-color: #ffcdd2 !important; }
+
 .import-btn button {
     background-color: #4CAF50 !important; color: white !important;
     border: 1px solid #388E3C !important;
@@ -38,9 +44,10 @@ st.markdown("""
 # 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО REPO GITHUB (ЧЕРЕЗ JSDELIVR CDN)
 # ==========================================
 GITHUB_USER = "sergsh1125-dotcom"
-GITHUB_REPO = "map-obstanovka"
+GITHUB_REPO = "map-obstanovka"  # 👈 Виправлено назву репозиторію згідно зі скріншотом
 GITHUB_BRANCH = "main"
 
+# Використовуємо CDN jsDelivr для правильної віддачі SVG з правильним MIME-типом
 GITHUB_BASE_URL = f"https://cdn.jsdelivr.net/gh/{GITHUB_USER}/{GITHUB_REPO}@{GITHUB_BRANCH}/assets/svg"
 
 def get_gh_svg_url(filename):
@@ -58,7 +65,6 @@ SRC_DETECT_CHEMICAL         = get_gh_svg_url("detect_chemical.svg")
 SRC_DETECT_RADIATION        = get_gh_svg_url("detect_radiation.svg")
 SRC_NUCLEAR_BLAST           = get_gh_svg_url("nuclear_blast.svg")
 SRC_RADIOACTIVE_SITE        = get_gh_svg_url("radioactive_site.svg")
-
 if "rkhb_points" not in st.session_state:
     st.session_state.rkhb_points = []
 
@@ -67,15 +73,7 @@ if "captured_lat" not in st.session_state:
 if "captured_lng" not in st.session_state:
     st.session_state.captured_lng = 30.5200
 
-# ОБРОБКА ПОВНОГО ОЧИЩЕННЯ
-if "clear_all" in st.query_params:
-    st.session_state.rkhb_points = []
-    st.session_state.captured_lat = 50.4500
-    st.session_state.captured_lng = 30.5200
-    st.query_params.clear()
-    st.rerun()
-
-# ОБРОБКА ВИДАЛЕННЯ ТОЧКИ ЧЕРЕЗ КЛІК НА КАРТІ
+# ОБРОБКА КОМАНД ВИДАЛЕННЯ З КАРТИ
 if "delete_point_idx" in st.query_params:
     try:
         idx_to_del = int(st.query_params["delete_point_idx"])
@@ -97,7 +95,7 @@ st.header("КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ")
 col_map, col_gui = st.columns([3, 1])
 
 # ==========================================
-# 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ (ПРАВА ПАНЕЛЬ)
+# 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ
 # ==========================================
 with col_gui:
     st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
@@ -127,6 +125,15 @@ with col_gui:
         if st.button("Нанести точку на карту", type="primary"):
             st.session_state.rkhb_points.append({"lat": m_lat, "lng": m_lon, "label": lbl, "date": m_date, "icon": ico})
             st.rerun()
+            
+        st.markdown('<div class="clear-btn">', unsafe_allow_html=True)
+        if st.button("🗑️ Очистити нанесені точки РХ забруднення "):
+            st.session_state.rkhb_points = []
+            st.session_state.captured_lat = 50.4500
+            st.session_state.captured_lng = 30.5200
+            st.query_params.clear()
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.divider()
     
@@ -177,224 +184,344 @@ with col_gui:
             st.error(f"Помилка: {str(e)}")
 
     if st.session_state.rkhb_points:
-        pts_only = [p for p in st.session_state.rkhb_points if "lat" in p]
-        if pts_only:
-            df_view = pd.DataFrame(pts_only)
-            st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=110)
+        df_view = pd.DataFrame(st.session_state.rkhb_points)
+        st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=110)
 
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
 # ==========================================
-# 3. HTML/JS КОД КАРТИ LEAFLET
+# 3. HTML/JS КОД КАРТИ LEAFLET (З ЦИКЛІЧНИМ НАНЕСЕННЯМ)
 # ==========================================
-html_map_component = f"""<!DOCTYPE html>
+html_map_component = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Map Module - AEGL Ellipse</title>
+    <title>Map Module 1</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.0/dist/leaflet-geoman.css" />
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.0/dist/leaflet-geoman.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
-        html, body {{ margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; background: #fff; }}
-        #mapContainer {{ width: 100%; height: 430px; position: relative; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }}
-        #map {{ width: 100%; height: 100%; }}
+        html, body { margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; background: #fff; }
+        #mapContainer { width: 100%; height: 430px; position: relative; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
+        #map { width: 100%; height: 100%; }
         
-        #bottomControlsPanel {{
+        #bottomControlsPanel {
             margin-top: 8px; background: #f5f5f5; padding: 10px; border-radius: 8px;
             border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            max-height: 280px; overflow-y: auto;
-        }}
-        .controls-row {{ display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }}
-        .controls-row label {{ font-size: 13px; font-weight: bold; color: #333; }}
-        .controls-row input {{ padding: 6px 8px; background: #fff; color: #000; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }}
+            max-height: 240px; overflow-y: auto; /* Дозволяємо внутрішній скрол, якщо елементи перенеслися */
+        }
+        .controls-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+        .controls-row:last-child { margin-bottom: 0; }
         
-        .panel-btn {{
+        .controls-row select, .controls-row input {
+            padding: 6px 8px; background: #fff; color: #000; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;
+        }
+        .controls-row label { font-size: 13px; font-weight: bold; color: #333; }
+        
+        .panel-btn {
             padding: 6px 10px; background: #e0e0e0; color: #000; border: 1px solid #adadad;
             border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 5px;
-        }}
-        .panel-btn:hover {{ background: #d4d4d4; }}
-        .btn-clear-all {{ background: #b71c1c !important; color: #ffffff !important; border-color: #880e4f !important; }}
-        .btn-clear-all:hover {{ background: #d32f2f !important; }}
+        }
+        .panel-btn:hover { background: #d4d4d4; }
+        .btn-stop { background: #ffcdd2 !important; color: #b71c1c !important; border-color: #e57373 !important; }
+        .btn-stop:hover { background: #ef9a9a !important; }
 
-        #windWidget {{
+        #windWidget {
             position: absolute; bottom: 15px; left: 10px; z-index: 1000;
             background: rgba(26, 26, 26, 0.9); color: #FFD600; padding: 6px;
-            border-radius: 8px; border: 1px solid #FFD600; text-align: center; width: 75px;
+            border-radius: 8px; border: 1px solid #FFD600; text-align: center; width: 70px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.5);
-        }}
-        .wind-arrow {{ font-size: 20px; display: inline-block; transition: transform 0.3s ease; }}
-        .wind-info {{ font-size: 9px; color: #fff; margin-top: 1px; font-weight: bold; }}
+        }
+        .wind-arrow { font-size: 20px; display: inline-block; transition: transform 0.5s; }
+        .wind-info { font-size: 9px; color: #fff; margin-top: 1px; font-weight: bold; }
 
-        @media (max-width: 600px) {{
-            #mapContainer {{ height: 350px; }}
-            .controls-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }}
-            .controls-row label {{ grid-column: span 2; }}
-            .controls-row input, .panel-btn {{ width: 100%; box-sizing: border-box; }}
-        }}
-    </style>
-</head>
+        .size-tooltip {
+            background: rgba(0, 0, 0, 0.85) !important; border: 1px solid #FFD600 !important;
+            color: #fff !important; font-weight: bold; font-size: 12px; padding: 4px 8px; border-radius: 4px;
+        }
+        
+        .leaflet-div-icon { background: transparent !important; border: none !important; box-shadow: none !important; }
+        .cbrn-military-lbl {
+            font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; color: #000 !important;
+            text-align: center; display: inline-block; white-space: nowrap; line-height: 1.3; background: transparent !important;
+        }
+        .cbrn-line-divider { border-bottom: 2px solid #000 !important; width: 100%; display: block; margin: 2px 0; }
+        .cbrn-date-sub { font-size: 11px; font-weight: bold; color: #000 !important; display: block; }
+
+        /* 📱 АДАПТИВНІСТЬ ДЛЯ СМАРТФОНІВ */
+        @media (max-width: 600px) {
+            #mapContainer { height: 350px; } /* Зменшуємо висоту карти на мобільних, щоб звільнити місце кнопкам */
+            .controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } /* Кнопки стають у 2 колонки */
+            .controls-row label { grid-column: span 2; margin-top: 4px; } /* Заголовки на всю ширину */
+            .controls-row select, .controls-row input { width: 100% !important; box-sizing: border-box; }
+            .panel-btn { justify-content: center; width: 100%; box-sizing: border-box; }
+        }
+    </style></head>
 <body>
+
     <div id="mapContainer">
         <div id="map"></div>
         <div id="windWidget">
-            <div class="wind-arrow" id="windArrow">↑</div>
-            <div class="wind-info" id="windText">0° | 0 м/с</div>
+            <div class="wind-arrow" id="arrow">↑</div>
+            <div class="wind-info" id="degInfo">0°</div>
+            <div class="wind-info" id="speedInfo">0 м/с</div>
         </div>
     </div>
 
     <div id="bottomControlsPanel">
         <div class="controls-row">
-            <label>Метеопараметри:</label>
-            <input type="number" id="windInput" placeholder="Напрямок (°)" style="width: 110px;" oninput="updateWindWidget()">
-            <input type="number" id="windSpeedInput" placeholder="Швидкість (м/с)" style="width: 120px;" oninput="updateWindWidget()">
-            <button class="panel-btn" onclick="enableEllipseMode()">Побудувати еліпс AEGL</button>
-            <button class="panel-btn btn-clear-all" onclick="clearAllShapes()">Очистити все</button>
+            <label>🧭 УМОВНІ ЗНАКИ РХБЗ:</label>
+            <select id="signSelect">
+                <option value="">-- Оберіть умовний знак для встановлення кліком --</option>
+                <option value="ICO_DETECT_RADIATION">Точка рад. забруднення (detect_radiation)</option>
+                <option value="ICO_DETECT_CHEMICAL">Точка хім. забруднення (detect_chemical)</option>
+                <option value="ICO_DETECT_BIOLOGICAL">Точка біо. зараження (detect_biological)</option>
+                <option value="ICO_CBRN_POST">Пост РХ спостереження (cbrn_post)</option>
+                <option value="ICO_NUCLEAR_BLAST">Епіцентр ядерного вибуху (nuclear_blast)</option>
+                <option value="ICO_BIOLOGICAL_HAZARD_SITE">Біологічно небезпечний об'єкт (biological_hazard_site)</option>
+                <option value="ICO_CHEMICAL_HAZARD_SITE">Хімічно небезпечний об'єкт (chemical_hazard_site)</option>
+                <option value="ICO_RADIOACTIVE_SITE">Радіаціно небезпечний об'єкт (radioactive_site)</option>
+                <option value="ICO_CBRN_CONTAMINATION_AREA">Район РХБ забруднення (cbrn_contamination_area)</option>
+                <option value="ICO_CBRN_RECON_AREA">Район РХБЗ розвідки (cbrn_recon_area)</option>
+                <option value="ICO_DECON_AREA_SPECIAL">Район спеціальної обробки (decon_area_special)</option>
+                <option value="ICO_DECON_POINT_SPECIAL">Пункт спеціальної обробки (decon_point_special)</option>
+            </select>
+            <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">Текст</button>
+            <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">Еліпс AEGL</button>
+            <button class="panel-btn" style="background: #ffffff; border-color: #616161;" id="stopBtn">ЗАВЕРШИТИ знак</button>
+            <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ОЧИСТИТИ (кліком) </button>
+        </div>
+        
+        <div class="controls-row">
+            <label>МЕТЕО — Напрямок вітру:</label>
+            <input type="number" id="wDegInput" placeholder="Градуси (0-360)" min="0" max="360" value="0" style="width:130px;">
+            <label>Швидкість вітру:</label>
+            <input type="number" id="wSpeedInput" placeholder="м/с" min="0" value="0" step="0.1" style="width:90px;">
+            
+            <button class="panel-btn" style="background: #fff59d; border-color:#fbc02d;" id="applyMeteoBtn">🌀 Застосувати</button>
+            <button class="panel-btn" style="background: #c8e6c9; border-color:#388e3c; margin-left: 20px;" id="pngBtn">🖼️ Зберегти PNG</button>
+            <button class="panel-btn" style="background: #ffcdd2; border-color:#d32f2f;" id="printBtn">🖨️ Друк / PDF</button>
         </div>
     </div>
 
-    <script>
-        var map = L.map('map').setView([50.45, 30.52], 10);
-        L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-            maxZoom: 19,
-            attribution: '© OpenStreetMap'
-        }}).addTo(map);
+<script>
+    var ico_biological_hazard_site  = SRC_BIOLOGICAL_HAZARD_SITE;
+    var ico_cbrn_contamination_area = SRC_CBRN_CONTAMINATION_AREA;
+    var ico_cbrn_post               = SRC_CBRN_POST;
+    var ico_cbrn_recon_area         = SRC_CBRN_RECON_AREA;
+    var ico_chemical_hazard_site    = SRC_CHEMICAL_HAZARD_SITE;
+    var ico_decon_area_special       = SRC_DECON_AREA_SPECIAL;
+    var ico_decon_point_special      = SRC_DECON_POINT_SPECIAL;
+    var ico_detect_biological       = SRC_DETECT_BIOLOGICAL;
+    var ico_detect_chemical         = SRC_DETECT_CHEMICAL;
+    var ico_detect_radiation        = SRC_DETECT_RADIATION;
+    var ico_nuclear_blast           = SRC_NUCLEAR_BLAST;
+    var ico_radioactive_site        = SRC_RADIOACTIVE_SITE;
 
-        var ellipseMode = false;
-        var state = {{ shapes: [], objects: [] }};
-        var createdLayers = {{}};
+    var map = L.map('map', { zoomControl: true }).setView([48.3, 31.1], 6);
+    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+    var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '© Google' });
+    osmLayer.addTo(map);
 
-        function updateWindWidget() {{
-            let deg = parseFloat(document.getElementById("windInput").value) || 0;
-            let spd = parseFloat(document.getElementById("windSpeedInput").value) || 0;
-            
-            // Стрілка вказує КУДИ дме вітер (додаємо 180° до метеорологічного напрямку)
-            document.getElementById("windArrow").style.transform = "rotate(" + (deg + 180) + "deg)";
-            document.getElementById("windText").innerText = deg + "° | " + spd + " м/с";
-        }}
+    map.pm.addControls({
+        position: 'topleft', drawMarker: false, drawCircleMarker: false, drawPolyline: true,
+        drawRectangle: true, drawPolygon: true, drawCircle: true, editControls: false
+    });
 
-        function enableEllipseMode() {{ 
-            ellipseMode = true; 
-            alert("Клікніть на карті у точці джерела викиду для побудови еліпса AEGL.");
-        }}
+    map.pm.setGlobalOptions({
+        measurements: { display: false },
+        pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.35, weight: 2 },
+        pinToMarker: true
+    });
+    map.pm.setLang('uk');
 
-        function clearAllShapes() {{
-            for (let id in createdLayers) {{
-                map.removeLayer(createdLayers[id]);
-            }}
-            createdLayers = {{}};
-            state.shapes = [];
-            state.objects = [];
-            saveState();
-        }}
+    map.on('pm:drawstart', function(e) {
+        if(e.shape === 'Circle') map.dragging.disable();
+    });
+    map.on('pm:drawend', function(e) {
+        map.dragging.enable();
+    });
 
-        function getEllipsePoints(lat, lng, rX, rY, tiltDeg) {{
-            let points = [];
-            let tiltRad = tiltDeg * Math.PI / 180;
-            
-            // Центр еліпса зміщується на напіввісь rX за напрямком перенесення вітром
-            let centerLat = lat + (rX * Math.cos(tiltRad)) / 111111;
-            let centerLng = lng + (rX * Math.sin(tiltRad)) / (111111 * Math.cos(lat * Math.PI / 180));
+    var baseMaps = { "🗺️ Карта OSM": osmLayer, "🛰️ Супутник Google": satLayer };
+    var dateLayers = {}; 
+    var layerControl = L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
 
-            for (let i = 0; i <= 360; i += 5) {{
-                let rad = i * Math.PI / 180;
-                let x = rX * Math.cos(rad);
-                let y = rY * Math.sin(rad);
+    function attachRemovalClick(layer, pointIndex) {
+        layer.on('click', function(e) {
+            if (map.pm.globalRemovalModeEnabled()) {
+                L.DomEvent.stopPropagation(e);
+                map.removeLayer(layer);
+                if (pointIndex !== undefined && pointIndex !== null) {
+                    var url = new URL(window.parent.location.href);
+                    url.searchParams.set('delete_point_idx', pointIndex);
+                    window.parent.history.replaceState({}, '', url);
+                    window.parent.postMessage({type: "streamlit:set_query_params", params: { delete_point_idx: pointIndex.toString() }}, "*");
+                }
+            }
+        });
+    }
 
-                // Поворот точок відносно осі перенесення
-                let rotX = x * Math.cos(tiltRad) - y * Math.sin(tiltRad);
-                let rotY = x * Math.sin(tiltRad) + y * Math.cos(tiltRad);
+    var inputPoints = DATA_FROM_PYTHON;
+    if(Array.isArray(inputPoints)) {
+        inputPoints.forEach(function(pt, index) {
+            var dateStr = pt.date || "Базові дані";
+            if (!dateLayers[dateStr]) {
+                dateLayers[dateStr] = L.layerGroup().addTo(map);
+                layerControl.addOverlay(dateLayers[dateStr], "📅 " + dateStr);
+            }
+            var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [32, 32], iconAnchor: [16, 16] });
+            var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
+            var labelHtml = "<div class='cbrn-military-lbl'><span>" + pt.label + "</span><div class='cbrn-line-divider'></div><span class='cbrn-date-sub'>" + dateStr + "</span></div>";
+            marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 16], className: 'leaflet-div-icon' });
+            attachRemovalClick(marker, index);
+            marker.addTo(dateLayers[dateStr]);
+        });
+    }
 
-                let pLat = centerLat + (rotX / 111111);
-                let pLng = centerLng + (rotY / (111111 * Math.cos(centerLat * Math.PI / 180)));
-                points.push([pLat, pLng]);
-            }}
-            return points;
-        }}
+    var activeIcon = ""; var textMode = false; var ellipseMode = false;
+    function clearModes() {
+        activeIcon = ""; textMode = false; ellipseMode = false;
+        document.getElementById('signSelect').value = "";
+    }
 
-        function render() {{
-            // Очищення вилучених шарів
-            for (let id in createdLayers) {{
-                let exists = state.shapes.some(s => s.id === id);
-                if (!exists) {{
-                    map.removeLayer(createdLayers[id]);
-                    delete createdLayers[id];
-                }}
-            }}
+    document.getElementById('signSelect').onchange = function(e) {
+        var val = e.target.value;
+        if(val === "ICO_DETECT_RADIATION") activeIcon = ico_detect_radiation;
+        else if(val === "ICO_DETECT_CHEMICAL") activeIcon = ico_detect_chemical;
+        else if(val === "ICO_DETECT_BIOLOGICAL") activeIcon = ico_detect_biological;
+        else if(val === "ICO_CBRN_POST") activeIcon = ico_cbrn_post;
+        else if(val === "ICO_NUCLEAR_BLAST") activeIcon = ico_nuclear_blast;
+        else if(val === "ICO_BIOLOGICAL_HAZARD_SITE") activeIcon = ico_biological_hazard_site;
+        else if(val === "ICO_CHEMICAL_HAZARD_SITE") activeIcon = ico_chemical_hazard_site;
+        else if(val === "ICO_RADIOACTIVE_SITE") activeIcon = ico_radioactive_site;
+        else if(val === "ICO_CBRN_CONTAMINATION_AREA") activeIcon = ico_cbrn_contamination_area;
+        else if(val === "ICO_CBRN_RECON_AREA") activeIcon = ico_cbrn_recon_area;
+        else if(val === "ICO_DECON_AREA_SPECIAL") activeIcon = ico_decon_area_special;
+        else if(val === "ICO_DECON_POINT_SPECIAL") activeIcon = ico_decon_point_special;
+        else activeIcon = "";
+        textMode = false; ellipseMode = false;
+    };
+    
+    document.getElementById('textBtn').onclick = function() { clearModes(); textMode = true; };
+    document.getElementById('ellipseBtn').onclick = function() { clearModes(); ellipseMode = true; };
+    document.getElementById('stopBtn').onclick = function() { clearModes(); if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode(); };
+    document.getElementById('deleteModeBtn').onclick = function() { clearModes(); map.pm.toggleGlobalRemovalMode(); };
 
-            // Побудова зон AEGL
-            state.shapes.forEach(shape => {{
-                if (shape.isEllipse && !createdLayers[shape.id]) {{
-                    let pts = getEllipsePoints(shape.ellipseCenter[0], shape.ellipseCenter[1], shape.radiusX, shape.radiusY, shape.tilt);
-                    
-                    let color = "#ef4444"; // AEGL-3 (Червоний - висока небезпека)
-                    if (shape.id.endsWith("_2")) color = "#f97316"; // AEGL-2 (Помаранчевий - середня небезпека)
-                    if (shape.id.endsWith("_3")) color = "#eab308"; // AEGL-1 (Жовтий - пороговий рівень)
+    map.on('click', function(e) {
+        var lat = e.latlng.lat;
+        var lng = e.latlng.lng;
 
-                    let polygon = L.polygon(pts, {{
-                        color: color,
-                        weight: 2,
-                        fillColor: color,
-                        fillOpacity: 0.25
-                    }}).addTo(map);
+        if (window.parent && window.parent.document) {
+            var targetBox = window.parent.document.getElementById('pythonCoordBox');
+            if (targetBox) {
+                targetBox.innerHTML = "📍 " + lat.toFixed(5) + " , " + lng.toFixed(5);
+            }
+        }
 
-                    createdLayers[shape.id] = polygon;
-                }}
-            }});
-        }}
+        if (!activeIcon && !textMode && !ellipseMode) {
+            if (map.pm.globalRemovalModeEnabled()) return;
+            var url = new URL(window.parent.location.href);
+            url.searchParams.set('click_lat', lat.toFixed(5));
+            url.searchParams.set('click_lng', lng.toFixed(5));
+            window.parent.history.replaceState({}, '', url);
+            window.parent.postMessage({type: "streamlit:set_query_params", params: {click_lat: lat.toFixed(5), click_lng: lng.toFixed(5)}}, "*");
+            return;
+        }
 
-        function saveState() {{
-            if (window.parent && window.parent.postMessage) {{
-                window.parent.postMessage({{ type: "streamlit:setComponentValue", value: state }}, "*");
-            }}
-        }}
+        // 👍 ВИПРАВЛЕНО: Знак та текст не закривають логіку нанесення після першого кліку!
+        if (activeIcon) {
+            var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
+            attachRemovalClick(m, null);
+        }
+        if (textMode) {
+            var txt = prompt("Введіть оперативно-тактичний підпис:");
+            if (txt) {
+                var tm = L.marker(e.latlng, {
+                    icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px;'>"+txt+"</span>" })
+                }).addTo(map);
+                attachRemovalClick(tm, null);
+            }
+        }
+        if (ellipseMode) {
+            var rX = prompt("Довжина зони AEGL (метри за вітром):", "4000"); if (!rX) return;
+            var rY = prompt("Ширина зони AEGL (метри бокова):", "1500"); if (!rY) return;
+            var deg = parseFloat(document.getElementById('wDegInput').value) || 0;
+            drawCbrnEllipse(e.latlng.lat, e.latlng.lng, parseFloat(rX), parseFloat(rY), deg);
+            clearModes(); 
+        }
+    });
 
-        map.on("click", function(e) {{
-            if (map.pm && (map.pm.globalDrawModeEnabled() || map.pm.globalRemovalModeEnabled())) return;
+    function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {
+        var angles = [1, 0.6, 0.3]; var colors = ["#ffcc00", "#ff9900", "#cc0000"]; var opacities = [0.25, 0.4, 0.6];
+        var windRad = (deg + 180) * Math.PI / 180;
+        angles.forEach(function(scale, idx) {
+            var curRx = rx * scale; var curRy = ry * scale; var points = [];
+            for (var i = 0; i <= 64; i++) {
+                var angle = (i / 64) * 2 * Math.PI;
+                var x = curRy * Math.cos(angle); var y = curRx * Math.sin(angle);
+                var rotX = x * Math.cos(windRad) + (y + curRx) * Math.sin(windRad);
+                var rotY = -x * Math.sin(windRad) + (y + curRx) * Math.cos(windRad);
+                var latOffset = rotY / 111320; var lngOffset = rotX / (111320 * Math.cos(centerLat * Math.PI / 180));
+                points.push([centerLat + latOffset, centerLng + lngOffset]);
+            }
+            var poly = L.polygon(points, { color: 'black', weight: 1, fillColor: colors[idx], fillOpacity: opacities[idx] }).addTo(map);
+            attachRemovalClick(poly, null);
+        });
+    }
 
-            if (ellipseMode) {{
-                let lengthInput = prompt("Введіть глибину/довжину розповсюдження (у метрах):", "5000");
-                if (!lengthInput || isNaN(parseFloat(lengthInput))) {{
-                    ellipseMode = false;
-                    return;
-                }}
+    document.getElementById('applyMeteoBtn').onclick = function() {
+        var deg = parseFloat(document.getElementById('wDegInput').value) || 0; var speed = parseFloat(document.getElementById('wSpeedInput').value) || 0;
+        document.getElementById('arrow').style.transform = "rotate(" + ((deg + 180) % 360) + "deg)";
+        document.getElementById('degInfo').innerText = deg + "°"; document.getElementById('speedInfo').innerText = speed + " м/с";
+    };
 
-                let totalLength = parseFloat(lengthInput);
-                let rX = totalLength / 2;
+    map.on('pm:create', function(e) {
+        if (e.shape === 'Circle') {
+            var radiusMeters = e.layer.getRadius();
+            var radiusKm = (radiusMeters / 1000).toFixed(2);
+            var labelText = "R = " + radiusKm + " км²";
+            var center = e.layer.getLatLng();
+            var latOffset = radiusMeters / 111320;
+            var topPoint = L.latLng(center.lat + latOffset, center.lng);
+            e.layer.bindTooltip(labelText, { permanent: true, direction: 'top', className: 'size-tooltip', offset: [0, -10] });
+        }
+        attachRemovalClick(e.layer, null);
+    });
 
-                let windDegVal = document.getElementById("windInput").value;
-                let windSpeedVal = document.getElementById("windSpeedInput").value;
-
-                let windDeg = windDegVal !== "" ? parseFloat(windDegVal) : 0;
-                let windSpeed = windSpeedVal !== "" ? parseFloat(windSpeedVal) : 0;
-
-                // Розрахунок ширини факела від швидкості вітру
-                let widthFactor = 0.25;
-                if (windSpeed <= 1.5) {{
-                    widthFactor = 0.40;
-                }} else if (windSpeed > 1.5 && windSpeed <= 4.0) {{
-                    widthFactor = 0.25;
-                }} else {{
-                    widthFactor = 0.15;
-                }}
-
-                let rY = rX * widthFactor;
-                let groupId = Date.now();
-
-                // Порядок додавання: AEGL-3 (найбільший), AEGL-2, AEGL-1 (найменший)
-                state.shapes.push({{ id: groupId + "_1", groupId: groupId, isEllipse: true, ellipseCenter: [e.latlng.lat, e.latlng.lng], radiusX: rX, radiusY: rY, tilt: windDeg }});
-                state.shapes.push({{ id: groupId + "_2", groupId: groupId, isEllipse: true, ellipseCenter: [e.latlng.lat, e.latlng.lng], radiusX: rX * 0.6, radiusY: rY * 0.6, tilt: windDeg }});
-                state.shapes.push({{ id: groupId + "_3", groupId: groupId, isEllipse: true, ellipseCenter: [e.latlng.lat, e.latlng.lng], radiusX: rX * 0.3, radiusY: rY * 0.3, tilt: windDeg }});
-
-                saveState();
-                render();
-                ellipseMode = false;
-            }}
-        }});
-    </script>
+    document.getElementById('pngBtn').onclick = function() {
+        var container = document.getElementById('mapContainer'); var controls = document.querySelector('.leaflet-control-container');
+        controls.style.display = 'none';
+        html2canvas(container, { useCORS: true, allowTaint: true }).then(function(canvas) {
+            var link = document.createElement('a'); link.download = 'CBRN_Map_Export.png'; link.href = canvas.toDataURL(); link.click();
+            controls.style.display = 'block';
+        });
+    };
+    document.getElementById('printBtn').onclick = function() { window.print(); };
+</script>
 </body>
 </html>
 """
+
+# ==========================================
+# 4. РЕНДЕРИНГ КАРТИ В STREAMLIT
+# ==========================================
+with col_map:
+    final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
+    final_html = final_html.replace("SRC_BIOLOGICAL_HAZARD_SITE", f"'{SRC_BIOLOGICAL_HAZARD_SITE}'")
+    final_html = final_html.replace("SRC_CBRN_CONTAMINATION_AREA", f"'{SRC_CBRN_CONTAMINATION_AREA}'")
+    final_html = final_html.replace("SRC_CBRN_POST", f"'{SRC_CBRN_POST}'")
+    final_html = final_html.replace("SRC_CBRN_RECON_AREA", f"'{SRC_CBRN_RECON_AREA}'")
+    final_html = final_html.replace("SRC_CHEMICAL_HAZARD_SITE", f"'{SRC_CHEMICAL_HAZARD_SITE}'")
+    final_html = final_html.replace("SRC_DECON_AREA_SPECIAL", f"'{SRC_DECON_AREA_SPECIAL}'")
+    final_html = final_html.replace("SRC_DECON_POINT_SPECIAL", f"'{SRC_DECON_POINT_SPECIAL}'")
+    final_html = final_html.replace("SRC_DETECT_BIOLOGICAL", f"'{SRC_DETECT_BIOLOGICAL}'")
+    final_html = final_html.replace("SRC_DETECT_CHEMICAL", f"'{SRC_DETECT_CHEMICAL}'")
+    final_html = final_html.replace("SRC_DETECT_RADIATION", f"'{SRC_DETECT_RADIATION}'")
+    final_html = final_html.replace("SRC_NUCLEAR_BLAST", f"'{SRC_NUCLEAR_BLAST}'")
+    final_html = final_html.replace("SRC_RADIOACTIVE_SITE", f"'{SRC_RADIOACTIVE_SITE}'")
+    
+    components.html(final_html, height=720, scrolling=False)
