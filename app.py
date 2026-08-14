@@ -184,14 +184,15 @@ with col_gui:
 
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
-// ==============================================================================
-// ВІДКОРИГОВАНИЙ HTML/JS КОД МАРКЕРА ТА ЕЛІПСА AEGL
-// ==============================================================================
+# ==============================================================================
+# ВІДКОРИГОВАНИЙ HTML/JS КОД МАРКЕРА ТА ЕЛІПСА AEGL
+# ==============================================================================
 html_map_component = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <title>Map Module 1</title>
+    ...
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.0/dist/leaflet-geoman.css" />
     
