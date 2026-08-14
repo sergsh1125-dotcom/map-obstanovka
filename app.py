@@ -192,7 +192,6 @@ html_map_component = f"""<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <title>Map Module 1</title>
-    ...
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.0/dist/leaflet-geoman.css" />
     
@@ -265,7 +264,8 @@ html_map_component = f"""<!DOCTYPE html>
             .controls-row select, .controls-row input {{ width: 100% !important; box-sizing: border-box; }}
             .panel-btn {{ justify-content: center; width: 100%; box-sizing: border-box; }}
         }}
-    </style></head>
+    </style>
+</head>
 <body>
 
     <div id="mapContainer">
@@ -297,7 +297,10 @@ html_map_component = f"""<!DOCTYPE html>
             </select>
             <button class="panel-btn" style="background: #fff3e0; border-color:#d97706; color:#b45309;" id="reconRouteBtn">Маршрут (ручний режим)</button>
             <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">Текст</button>
+            
+            <!-- КНОПКА АКТИВАЦІЇ ЕЛІПСА AEGL -->
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">Еліпс AEGL</button>
+            
             <button class="panel-btn" style="background: #ffffff; border-color: #616161;" id="stopBtn">ЗАВЕРШИТИ знак</button>
             <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ВИДАЛИТИ (кліком)</button>
             <button class="panel-btn btn-clear-all" id="clearAllMapBtn">ОЧИСТИТИ ВСЮ КАРТУ</button>
@@ -322,7 +325,7 @@ html_map_component = f"""<!DOCTYPE html>
     </div>
 
 <script>
-    var ico_biological_hazard_site  = "{SRC_BIOLOGICAL_HAZARD_SITE}";
+    var ico_biological_hazard_site   = "{SRC_BIOLOGICAL_HAZARD_SITE}";
     var ico_cbrn_contamination_area = "{SRC_CBRN_CONTAMINATION_AREA}";
     var ico_cbrn_post               = "{SRC_CBRN_POST}";
     var ico_cbrn_recon_area         = "{SRC_CBRN_RECON_AREA}";
@@ -606,6 +609,9 @@ html_map_component = f"""<!DOCTYPE html>
         window.print();
     }};
 
+    // =========================================================================
+    // ОБРОБНИК КЛІКУ ПО КАРТІ (МАРКЕРИ, ТЕКСТ, ЕЛІПС AEGL)
+    // =========================================================================
     map.on('click', function(e) {{
         var lat = e.latlng.lat;
         var lng = e.latlng.lng;
@@ -631,6 +637,7 @@ html_map_component = f"""<!DOCTYPE html>
             var m = L.marker(e.latlng, {{ icon: L.icon({{ iconUrl: activeIcon, iconSize: [32, 32], iconAnchor: [16, 16] }}) }}).addTo(map);
             attachRemovalClick(m, null);
         }}
+        
         if (textMode) {{
             var txt = prompt("Введіть оперативно-тактичний підпис:");
             if (txt) {{
@@ -640,6 +647,8 @@ html_map_component = f"""<!DOCTYPE html>
                 attachRemovalClick(tm, null);
             }}
         }}
+
+        // --- БЛОК ПОБУДОВИ ЕЛІПСА AEGL ---
         if (ellipseMode) {{
             var semiMajor = prompt("Введіть велику піввісь (км):", "5");
             var semiMinor = prompt("Введіть малу піввісь (км):", "2");
