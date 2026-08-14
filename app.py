@@ -101,7 +101,7 @@ col_map, col_gui = st.columns([3, 1])
 # ==========================================
 with col_gui:
     st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
-    st.markdown("<div class='info-text'>ℹ️ Для нанесення точки РХ забруднення вручну клікніть у визначеній точці на карті та введіть показники.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='info-text'>ℹ️ Для нанесення точки РХ загрязнення вручну клікніть у визначеній точці на карті та введіть показники.</div>", unsafe_allow_html=True)
     st.markdown(f"<div id='pythonCoordBox' class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
     
     with st.expander("➕ Параметри точки вимірювання", expanded=True):
@@ -650,33 +650,31 @@ html_map_component = f"""<!DOCTYPE html>
     }});
 
     // ВІДКОРИГОВАНА ФУНКЦІЯ: ЕЛІПС ПОЧИНАЄТЬСЯ З ТОЧКИ ДЖЕРЕЛА
-    function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {
+    function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {{
         var scales = [1, 0.6, 0.3]; 
         var colors = ["#ffcc00", "#ff9900", "#cc0000"]; 
         var opacities = [0.25, 0.4, 0.6];
         var labels = ["AEGL-1 (Низька)", "AEGL-2 (Середня)", "AEGL-3 (Висока)"];
         
-        // Напрямок за вітром (зсув повітряних мас)
+        // Напрямок за вітром
         var windRad = (deg + 180) * Math.PI / 180;
         
-        scales.forEach(function(scale, idx) {
-            var curRx = rx * scale; // Повна довжина (глибина) зони AEGL
-            var curRy = ry * scale; // Повна ширина зони AEGL
+        scales.forEach(function(scale, idx) {{
+            var curRx = rx * scale; // Глибина
+            var curRy = ry * scale; // Ширина
             
-            var a = curRy / 2; // Напівширина еліпса
-            var b = curRx / 2; // Напівдовжина еліпса
+            var a = curRy / 2; // Напівширина
+            var b = curRx / 2; // Напівдовжина
             
             var points = [];
             
-            for (var i = 0; i <= 64; i++) {
+            for (var i = 0; i <= 64; i++) {{
                 var angle = (i / 64) * 2 * Math.PI;
                 
-                // Стандартні канонічні координати еліпса
                 var x = a * Math.cos(angle); 
                 var y = b * Math.sin(angle);
                 
-                // Зсув (y + b): прив'язує ПОЧАТОК (вершину) еліпса до джерела забруднення,
-                // після чого розвертає його за азимутом вітру
+                // Зсув (y + b) прив'язує вершину еліпса до джерела забруднення
                 var rotX = x * Math.cos(windRad) + (y + b) * Math.sin(windRad);
                 var rotY = -x * Math.sin(windRad) + (y + b) * Math.cos(windRad);
                 
@@ -684,23 +682,24 @@ html_map_component = f"""<!DOCTYPE html>
                 var lngOffset = rotX / (111320 * Math.cos(centerLat * Math.PI / 180));
                 
                 points.push([centerLat + latOffset, centerLng + lngOffset]);
-            }
+            }}
             
-            var poly = L.polygon(points, { 
+            var poly = L.polygon(points, {{ 
                 color: '#000000', 
                 weight: 1.5, 
                 fillColor: colors[idx], 
                 fillOpacity: opacities[idx] 
-            }).addTo(map);
+            }}).addTo(map);
             
-            poly.bindTooltip(labels[idx] + " (" + (curRx/1000).toFixed(1) + " км)", {
+            poly.bindTooltip(labels[idx] + " (" + (curRx/1000).toFixed(1) + " км)", {{
                 permanent: false, 
                 direction: 'auto'
-            });
+            }});
             
             attachRemovalClick(poly, null);
-        });
-    }</script>
+        }});
+    }}
+</script>
 </body>
 </html>
 """
