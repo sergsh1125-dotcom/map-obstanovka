@@ -184,9 +184,9 @@ with col_gui:
 
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
-# ==========================================
-# 3. HTML/JS КОД КАРТИ LEAFLET
-# ==========================================
+// ==============================================================================
+// ВІДКОРИГОВАНИЙ HTML/JS КОД МАРКЕРА ТА ЕЛІПСА AEGL
+// ==============================================================================
 html_map_component = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -264,8 +264,7 @@ html_map_component = f"""<!DOCTYPE html>
             .controls-row select, .controls-row input {{ width: 100% !important; box-sizing: border-box; }}
             .panel-btn {{ justify-content: center; width: 100%; box-sizing: border-box; }}
         }}
-    </style>
-</head>
+    </style></head>
 <body>
 
     <div id="mapContainer">
