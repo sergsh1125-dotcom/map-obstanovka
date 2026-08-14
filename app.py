@@ -649,54 +649,58 @@ html_map_component = f"""<!DOCTYPE html>
         }}
     }});
 
-    // ВІДКОРИГОВАНА ФУНКЦІЯ НАНЕСЕННЯ ЕЛІПСУ ЗОНИ ЗАБРУДНЕННЯ
-    function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {{
+    // ВІДКОРИГОВАНА ФУНКЦІЯ: ЕЛІПС ПОЧИНАЄТЬСЯ З ТОЧКИ ДЖЕРЕЛА
+    function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {
         var scales = [1, 0.6, 0.3]; 
         var colors = ["#ffcc00", "#ff9900", "#cc0000"]; 
         var opacities = [0.25, 0.4, 0.6];
         var labels = ["AEGL-1 (Низька)", "AEGL-2 (Середня)", "AEGL-3 (Висока)"];
         
-        // Математичний кут розповсюдження за вітром (метеорологічний кут переводиться у напрямок знесення)
+        // Напрямок за вітром (зсув повітряних мас)
         var windRad = (deg + 180) * Math.PI / 180;
         
-        scales.forEach(function(scale, idx) {{
-            var curRx = rx * scale; 
-            var curRy = ry * scale; 
+        scales.forEach(function(scale, idx) {
+            var curRx = rx * scale; // Повна довжина (глибина) зони AEGL
+            var curRy = ry * scale; // Повна ширина зони AEGL
+            
+            var a = curRy / 2; // Напівширина еліпса
+            var b = curRx / 2; // Напівдовжина еліпса
+            
             var points = [];
             
-            for (var i = 0; i <= 64; i++) {{
+            for (var i = 0; i <= 64; i++) {
                 var angle = (i / 64) * 2 * Math.PI;
                 
-                // Параметрична форма еліпса, де точка витоку перебуває у фокусі/краю зони
-                var x = curRy * Math.cos(angle); 
-                var y = curRx * Math.sin(angle);
+                // Стандартні канонічні координати еліпса
+                var x = a * Math.cos(angle); 
+                var y = b * Math.sin(angle);
                 
-                // Поворот координат з урахуванням азимуту вітру
-                var rotX = x * Math.cos(windRad) + (y + curRx) * Math.sin(windRad);
-                var rotY = -x * Math.sin(windRad) + (y + curRx) * Math.cos(windRad);
+                // Зсув (y + b): прив'язує ПОЧАТОК (вершину) еліпса до джерела забруднення,
+                // після чого розвертає його за азимутом вітру
+                var rotX = x * Math.cos(windRad) + (y + b) * Math.sin(windRad);
+                var rotY = -x * Math.sin(windRad) + (y + b) * Math.cos(windRad);
                 
                 var latOffset = rotY / 111320; 
                 var lngOffset = rotX / (111320 * Math.cos(centerLat * Math.PI / 180));
                 
                 points.push([centerLat + latOffset, centerLng + lngOffset]);
-            }}
+            }
             
-            var poly = L.polygon(points, {{ 
+            var poly = L.polygon(points, { 
                 color: '#000000', 
                 weight: 1.5, 
                 fillColor: colors[idx], 
                 fillOpacity: opacities[idx] 
-            }}).addTo(map);
+            }).addTo(map);
             
-            poly.bindTooltip(labels[idx] + " (" + (curRx/1000).toFixed(1) + " км)", {{
+            poly.bindTooltip(labels[idx] + " (" + (curRx/1000).toFixed(1) + " км)", {
                 permanent: false, 
                 direction: 'auto'
-            }});
+            });
             
             attachRemovalClick(poly, null);
-        }});
-    }}
-</script>
+        });
+    }</script>
 </body>
 </html>
 """
