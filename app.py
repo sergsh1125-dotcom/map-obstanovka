@@ -185,7 +185,7 @@ with col_gui:
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
 # ==============================================================================
-# ВІДКОРИГОВАНИЙ HTML/JS КОД МАРКЕРА ТА ЕЛІПСА AEGL
+# ВІДКОРИГОВАНИЙ HTML/JS КОД З ГАРАНТОВАНИМ МAЛЮВАННЯМ ЕЛІПСА AEGL
 # ==============================================================================
 html_map_component = f"""<!DOCTYPE html>
 <html>
@@ -222,6 +222,7 @@ html_map_component = f"""<!DOCTYPE html>
             border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 5px;
         }}
         .panel-btn:hover {{ background: #d4d4d4; }}
+        .btn-active {{ background: #a5d6a7 !important; border-color: #2e7d32 !important; }}
         .btn-stop {{ background: #ffebee !important; color: #c62828 !important; border-color: #ef9a9a !important; }}
         .btn-stop:hover {{ background: #ffcdd2 !important; }}
         .btn-clear-all {{ background: #b71c1c !important; color: #ffffff !important; border-color: #880e4f !important; }}
@@ -298,8 +299,8 @@ html_map_component = f"""<!DOCTYPE html>
             <button class="panel-btn" style="background: #fff3e0; border-color:#d97706; color:#b45309;" id="reconRouteBtn">Маршрут (ручний режим)</button>
             <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">Текст</button>
             
-            <!-- КНОПКА АКТИВАЦІЇ ЕЛІПСА AEGL -->
-            <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">Еліпс AEGL</button>
+            <!-- КНОПКА ЕЛІПСА AEGL -->
+            <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">🧅 Еліпс AEGL</button>
             
             <button class="panel-btn" style="background: #ffffff; border-color: #616161;" id="stopBtn">ЗАВЕРШИТИ знак</button>
             <button class="panel-btn btn-stop" id="deleteModeBtn">🗑️ ВИДАЛИТИ (кліком)</button>
@@ -426,9 +427,11 @@ html_map_component = f"""<!DOCTYPE html>
     }}
 
     var activeIcon = ""; var textMode = false; var ellipseMode = false; var isReconMode = false;
+
     function clearModes() {{
         activeIcon = ""; textMode = false; ellipseMode = false; isReconMode = false;
         document.getElementById('signSelect').value = "";
+        document.getElementById('ellipseBtn').classList.remove('btn-active');
         if(map.pm.globalDrawModeEnabled()) map.pm.disableDraw();
     }}
 
@@ -556,6 +559,7 @@ html_map_component = f"""<!DOCTYPE html>
     }};
 
     document.getElementById('signSelect').onchange = function(e) {{
+        clearModes();
         var val = e.target.value;
         if(val === "ICO_DETECT_RADIATION") activeIcon = ico_detect_radiation;
         else if(val === "ICO_DETECT_CHEMICAL") activeIcon = ico_detect_chemical;
@@ -570,7 +574,6 @@ html_map_component = f"""<!DOCTYPE html>
         else if(val === "ICO_DECON_AREA_SPECIAL") activeIcon = ico_decon_area_special;
         else if(val === "ICO_DECON_POINT_SPECIAL") activeIcon = ico_decon_point_special;
         else activeIcon = "";
-        textMode = false; ellipseMode = false; isReconMode = false;
     }};
     
     document.getElementById('reconRouteBtn').onclick = function() {{
@@ -583,7 +586,15 @@ html_map_component = f"""<!DOCTYPE html>
     }};
 
     document.getElementById('textBtn').onclick = function() {{ clearModes(); textMode = true; }};
-    document.getElementById('ellipseBtn').onclick = function() {{ clearModes(); ellipseMode = true; }};
+    
+    // АКТИВАЦІЯ РЕЖИМУ ЕЛІПСА AEGL
+    document.getElementById('ellipseBtn').onclick = function() {{ 
+        clearModes(); 
+        ellipseMode = true; 
+        this.classList.add('btn-active');
+        alert("Режим ЕЛІПС AEGL активовано! Клікніть на карті в точці епіцентру.");
+    }};
+
     document.getElementById('stopBtn').onclick = function() {{ clearModes(); if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode(); }};
     document.getElementById('deleteModeBtn').onclick = function() {{ clearModes(); map.pm.toggleGlobalRemovalMode(); }};
 
@@ -610,7 +621,59 @@ html_map_component = f"""<!DOCTYPE html>
     }};
 
     // =========================================================================
-    // ОБРОБНИК КЛІКУ ПО КАРТІ (МАРКЕРИ, ТЕКСТ, ЕЛІПС AEGL)
+    // ОПРЕМA ФУНКЦІЯ ПОБУДОВИ ЕЛІПСА AEGL
+    // =========================================================================
+    function drawAEGLEllipse(lat, lng) {{
+        var semiMajor = prompt("Введіть велику піввісь (км):", "5");
+        if (semiMajor === null) return;
+        var semiMinor = prompt("Введіть малу піввісь (км):", "2");
+        if (semiMinor === null) return;
+        var angle = prompt("Введіть кут повороту за годинниковою стрілкою від півночі (градуси):", "0");
+        if (angle === null) return;
+
+        var a = parseFloat(semiMajor) * 1000;
+        var b = parseFloat(semiMinor) * 1000;
+        var rot = parseFloat(angle) || 0;
+
+        if (isNaN(a) || isNaN(b) || a <= 0 || b <= 0) {{
+            alert("Некоректні розміри піввісей!");
+            return;
+        }}
+
+        var points = [];
+        for (var i = 0; i <= 360; i += 5) {{
+            var rad = (i * Math.PI) / 180;
+            var x = a * Math.cos(rad);
+            var y = b * Math.sin(rad);
+
+            var rotRad = (rot * Math.PI) / 180;
+            var xRot = x * Math.cos(rotRad) - y * Math.sin(rotRad);
+            var yRot = x * Math.sin(rotRad) + y * Math.cos(rotRad);
+
+            var dLat = yRot / 111139;
+            var dLng = xRot / (111139 * Math.cos((lat * Math.PI) / 180));
+
+            points.push([lat + dLat, lng + dLng]);
+        }}
+
+        var ellipsePoly = L.polygon(points, {{
+            color: '#8d6e63',
+            fillColor: '#d7ccc8',
+            fillOpacity: 0.45,
+            weight: 2
+        }}).addTo(map);
+
+        ellipsePoly.bindTooltip("Еліпс AEGL: " + semiMajor + "x" + semiMinor + " км (" + rot + "°)", {{
+            permanent: true,
+            direction: 'center',
+            className: 'size-tooltip'
+        }});
+
+        attachRemovalClick(ellipsePoly, null);
+    }}
+
+    // =========================================================================
+    // ОБРОБНИК КЛІКУ ПО КАРТІ
     // =========================================================================
     map.on('click', function(e) {{
         var lat = e.latlng.lat;
@@ -623,7 +686,14 @@ html_map_component = f"""<!DOCTYPE html>
             }}
         }}
 
-        if (!activeIcon && !textMode && !ellipseMode && !isReconMode) {{
+        // Обробка еліпса AEGL
+        if (ellipseMode) {{
+            drawAEGLEllipse(lat, lng);
+            clearModes(); // Скидаємо режим після нанесення
+            return;
+        }}
+
+        if (!activeIcon && !textMode && !isReconMode) {{
             if (map.pm.globalRemovalModeEnabled()) return;
             var url = new URL(window.parent.location.href);
             url.searchParams.set('click_lat', lat.toFixed(5));
@@ -645,50 +715,6 @@ html_map_component = f"""<!DOCTYPE html>
                     icon: L.divIcon({{ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px;'>"+txt+"</span>" }})
                 }}).addTo(map);
                 attachRemovalClick(tm, null);
-            }}
-        }}
-
-        // --- БЛОК ПОБУДОВИ ЕЛІПСА AEGL ---
-        if (ellipseMode) {{
-            var semiMajor = prompt("Введіть велику піввісь (км):", "5");
-            var semiMinor = prompt("Введіть малу піввісь (км):", "2");
-            var angle = prompt("Введіть кут повороту за годинниковою стрілкою від півночі (градуси):", "0");
-            
-            if (semiMajor && semiMinor) {{
-                var a = parseFloat(semiMajor) * 1000;
-                var b = parseFloat(semiMinor) * 1000;
-                var rot = parseFloat(angle) || 0;
-                
-                var points = [];
-                for (var i = 0; i <= 360; i += 5) {{
-                    var rad = (i * Math.PI) / 180;
-                    var x = a * Math.cos(rad);
-                    var y = b * Math.sin(rad);
-                    
-                    var rotRad = (rot * Math.PI) / 180;
-                    var xRot = x * Math.cos(rotRad) - y * Math.sin(rotRad);
-                    var yRot = x * Math.sin(rotRad) + y * Math.cos(rotRad);
-                    
-                    var dLat = yRot / 111139;
-                    var dLng = xRot / (111139 * Math.cos((lat * Math.PI) / 180));
-                    
-                    points.push([lat + dLat, lng + dLng]);
-                }}
-                
-                var ellipsePoly = L.polygon(points, {{
-                    color: '#8d6e63',
-                    fillColor: '#d7ccc8',
-                    fillOpacity: 0.4,
-                    weight: 2
-                }}).addTo(map);
-                
-                ellipsePoly.bindTooltip("Еліпс AEGL: " + semiMajor + "x" + semiMinor + " км (" + rot + "°)", {{
-                    permanent: true,
-                    direction: 'center',
-                    className: 'size-tooltip'
-                }});
-                
-                attachRemovalClick(ellipsePoly, null);
             }}
         }}
     }});
