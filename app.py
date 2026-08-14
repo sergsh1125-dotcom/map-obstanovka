@@ -641,68 +641,55 @@ html_map_component = f"""<!DOCTYPE html>
             }}
         }}
         if (ellipseMode) {{
-            var rX = prompt("Глибина зони AEGL (метри за вітром):", "4000"); if (!rX) return;
-            var rY = prompt("Ширина зони AEGL (метри бокова):", "1500"); if (!rY) return;
-            var deg = parseFloat(document.getElementById('wDegInput').value) || 0;
-            drawCbrnEllipse(e.latlng.lat, e.latlng.lng, parseFloat(rX), parseFloat(rY), deg);
-            clearModes(); 
+            var semiMajor = prompt("Введіть велику піввісь (км):", "5");
+            var semiMinor = prompt("Введіть малу піввісь (км):", "2");
+            var angle = prompt("Введіть кут повороту за годинниковою стрілкою від півночі (градуси):", "0");
+            
+            if (semiMajor && semiMinor) {{
+                var a = parseFloat(semiMajor) * 1000;
+                var b = parseFloat(semiMinor) * 1000;
+                var rot = parseFloat(angle) || 0;
+                
+                var points = [];
+                for (var i = 0; i <= 360; i += 5) {{
+                    var rad = (i * Math.PI) / 180;
+                    var x = a * Math.cos(rad);
+                    var y = b * Math.sin(rad);
+                    
+                    var rotRad = (rot * Math.PI) / 180;
+                    var xRot = x * Math.cos(rotRad) - y * Math.sin(rotRad);
+                    var yRot = x * Math.sin(rotRad) + y * Math.cos(rotRad);
+                    
+                    var dLat = yRot / 111139;
+                    var dLng = xRot / (111139 * Math.cos((lat * Math.PI) / 180));
+                    
+                    points.push([lat + dLat, lng + dLng]);
+                }}
+                
+                var ellipsePoly = L.polygon(points, {{
+                    color: '#8d6e63',
+                    fillColor: '#d7ccc8',
+                    fillOpacity: 0.4,
+                    weight: 2
+                }}).addTo(map);
+                
+                ellipsePoly.bindTooltip("Еліпс AEGL: " + semiMajor + "x" + semiMinor + " км (" + rot + "°)", {{
+                    permanent: true,
+                    direction: 'center',
+                    className: 'size-tooltip'
+                }});
+                
+                attachRemovalClick(ellipsePoly, null);
+            }}
         }}
     }});
-
-    // ВІДКОРИГОВАНА ФУНКЦІЯ: ЕЛІПС ПОЧИНАЄТЬСЯ З ТОЧКИ ДЖЕРЕЛА
-    function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {{
-        var scales = [1, 0.6, 0.3]; 
-        var colors = ["#ffcc00", "#ff9900", "#cc0000"]; 
-        var opacities = [0.25, 0.4, 0.6];
-        var labels = ["AEGL-1 (Низька)", "AEGL-2 (Середня)", "AEGL-3 (Висока)"];
-        
-        // Напрямок за вітром
-        var windRad = (deg + 180) * Math.PI / 180;
-        
-        scales.forEach(function(scale, idx) {{
-            var curRx = rx * scale; // Глибина
-            var curRy = ry * scale; // Ширина
-            
-            var a = curRy / 2; // Напівширина
-            var b = curRx / 2; // Напівдовжина
-            
-            var points = [];
-            
-            for (var i = 0; i <= 64; i++) {{
-                var angle = (i / 64) * 2 * Math.PI;
-                
-                var x = a * Math.cos(angle); 
-                var y = b * Math.sin(angle);
-                
-                // Зсув (y + b) прив'язує вершину еліпса до джерела забруднення
-                var rotX = x * Math.cos(windRad) + (y + b) * Math.sin(windRad);
-                var rotY = -x * Math.sin(windRad) + (y + b) * Math.cos(windRad);
-                
-                var latOffset = rotY / 111320; 
-                var lngOffset = rotX / (111320 * Math.cos(centerLat * Math.PI / 180));
-                
-                points.push([centerLat + latOffset, centerLng + lngOffset]);
-            }}
-            
-            var poly = L.polygon(points, {{ 
-                color: '#000000', 
-                weight: 1.5, 
-                fillColor: colors[idx], 
-                fillOpacity: opacities[idx] 
-            }}).addTo(map);
-            
-            poly.bindTooltip(labels[idx] + " (" + (curRx/1000).toFixed(1) + " км)", {{
-                permanent: false, 
-                direction: 'auto'
-            }});
-            
-            attachRemovalClick(poly, null);
-        }});
-    }}
 </script>
 </body>
 </html>
 """
 
+# ==========================================
+# 4. РЕНДЕРИНГ КАРТИ У STREAMLIT
+# ==========================================
 with col_map:
-    components.html(html_map_component, height=750, scrolling=False)
+    components.html(html_map_component, height=760, scrolling=False)
