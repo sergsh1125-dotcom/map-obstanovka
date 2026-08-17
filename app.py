@@ -4,38 +4,38 @@ import json
 from datetime import datetime
 import streamlit.components.v1 as components
 
-# 1. ОБОВ'ЯЗКОВО першим рядком:
 st.set_page_config(page_title="Платформа ХБРЯ", layout="wide")
 
-# 2. Оновлений CSS (піднімає вгору і розтягує на всю ширину)
+# Оптимізовані стилі для максимального підняття карти вгору
 st.markdown("""
 <style>
 #MainMenu, footer, header {visibility: hidden;}
 
-/* Розтягуємо контейнер на всю ширину екрана та прибираємо верхній відступ */
+/* Мінімізація відступів основного контейнера */
 .main .block-container {
     max-width: 100% !important;
-    padding-top: 1rem !important;
+    padding-top: 0.5rem !important;
     padding-bottom: 0rem !important;
-    padding-left: 1.5rem !important;
-    padding-right: 1.5rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
 }
 
-/* Прибираємо зайві відступи у заголовка */
-h3 {
-    margin-top: 0px !important;
-    padding-top: 0px !important;
-    margin-bottom: 15px !important;
+/* Компактний заголовок без верхнього відступу */
+.custom-header {
+    margin-top: -15px !important;
+    margin-bottom: 10px !important;
+    font-size: 24px;
+    font-weight: bold;
+    color: white;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# 3. ЄДИНИЙ заголовок
-st.markdown("<h3 style='color: white;'>КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ</h3>", unsafe_allow_html=True)
+# ЄДИНИЙ заголовок (переконайтеся, що ви видалили st.header чи інші заголовки)
+st.markdown("<div class='custom-header'>КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ</div>", unsafe_allow_html=True)
 
-# 4. Пропорції колонок (3 до 1)
-col_map, col_gui = st.columns([3, 1])# ==========================================
-# 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО REPO GITHUB (ЧЕРЕЗ JSDELIVR CDN)
+# Колонки екрана
+col_map, col_gui = st.columns([3, 1])# 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО REPO GITHUB (ЧЕРЕЗ JSDELIVR CDN)
 # ==========================================
 GITHUB_USER = "sergsh1125-dotcom"
 GITHUB_REPO = "map-obstanovka"
@@ -92,10 +92,6 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
         st.session_state.captured_lng = float(st.query_params["click_lng"])
     except (ValueError, TypeError):
         pass
-
-st.header("КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ")
-col_map, col_gui = st.columns([3, 1])
-
 # ==========================================
 # 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ (ПРАВА ПАНЕЛЬ)
 # ==========================================
