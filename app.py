@@ -671,4 +671,4 @@ rendered_html = html_map_template.replace("__POINTS_JSON__", points_json) \
                                  .replace("__SRC_RADIOACTIVE_SITE__", SRC_RADIOACTIVE_SITE)
 
 with col_map:
-    components.html(rendered_html, height=685)
+    components.html(rendered_html, height=700)
