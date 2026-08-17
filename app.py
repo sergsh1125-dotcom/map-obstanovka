@@ -140,7 +140,7 @@ with col_gui:
   )
 
   with st.expander("➕ Параметри точки вимірювання", expanded=True):
-    m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"])
+    m_type = st.radio("Тип загрязнення:", ["Радіоактивне", "Хімічне"])
     m_lat = st.number_input(
         "Широта (Lat)",
         value=st.session_state.captured_lat,
@@ -628,12 +628,12 @@ html_map_template = """<!DOCTYPE html>
     document.getElementById('stopBtn').onclick = function() { clearModes(); if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode(); };
     document.getElementById('deleteModeBtn').onclick = function() { clearModes(); map.pm.toggleGlobalRemovalMode(); };
 
-    // ОБРОБКА МЕТЕОДАНИХ (З врахуванням напрямку звідки дме вітер)
+    // ОБРОБКА МЕТЕОДАНИХ
     document.getElementById('applyMeteoBtn').onclick = function() {
         var windFromDeg = parseFloat(document.getElementById('windInput').value) || 0;
         var windSpeed = parseFloat(document.getElementById('windSpeedInput').value) || 0;
         
-        // Вектор перенесення хімічної хмари/повітря спрямований у протилежний бік (+180°)
+        // Стрілка показує напрямок КУДИ дме вітер (перенесення)
         var blowToDeg = (windFromDeg + 180) % 360;
         
         document.getElementById('arrow').style.transform = 'rotate(' + blowToDeg + 'deg)';
@@ -697,9 +697,6 @@ html_map_template = """<!DOCTYPE html>
             var windFromDeg = parseFloat(document.getElementById('windInput').value) || 0;
             var windSpeed = parseFloat(document.getElementById('windSpeedInput').value) || 0;
 
-            // Перенесення хмари відбувається по напрямку куди дме вітер
-            var blowToDeg = (windFromDeg + 180) % 360;
-
             var widthFactor = 0.40;
             if (windSpeed <= 1.5) {
                 widthFactor = 0.40;
@@ -713,9 +710,9 @@ html_map_template = """<!DOCTYPE html>
             var groupId = "aegl_group_" + Date.now();
 
             var shapes = [
-                { radiusX: rX * 1.0, radiusY: rY * 1.0, scale: 1.0, level: "AEGL-1", color: "#ffcc00", opacity: 0.25, groupId: groupId, tilt: blowToDeg },
-                { radiusX: rX * 0.6, radiusY: rY * 0.6, scale: 0.6, level: "AEGL-2", color: "#ff9900", opacity: 0.40, groupId: groupId, tilt: blowToDeg },
-                { radiusX: rX * 0.3, radiusY: rY * 0.3, scale: 0.3, level: "AEGL-3", color: "#cc0000", opacity: 0.65, groupId: groupId, tilt: blowToDeg }
+                { radiusX: rX * 1.0, radiusY: rY * 1.0, scale: 1.0, level: "AEGL-1", color: "#ffcc00", opacity: 0.25, groupId: groupId },
+                { radiusX: rX * 0.6, radiusY: rY * 0.6, scale: 0.6, level: "AEGL-2", color: "#ff9900", opacity: 0.40, groupId: groupId },
+                { radiusX: rX * 0.3, radiusY: rY * 0.3, scale: 0.3, level: "AEGL-3", color: "#cc0000", opacity: 0.65, groupId: groupId }
             ];
 
             renderAeglGroup(e.latlng, shapes, windFromDeg, windSpeed, totalLength);
@@ -727,9 +724,10 @@ html_map_template = """<!DOCTYPE html>
     function renderAeglGroup(ellipseCenter, shapes, windFromDeg, windSpeed, totalL) {
         shapes.sort((a, b) => b.radiusX - a.radiusX);
 
+        // Вітер дме ЗВІДКИ (windFromDeg). 
+        // Кут перенесення хмари КУДИ дме вітер = (windFromDeg + 180) % 360
         var blowToDeg = (windFromDeg + 180) % 360;
-        var windRad = blowToDeg * Math.PI / 180.0;
-        var angleRad = windRad + Math.PI;
+        var blowToRad = blowToDeg * Math.PI / 180.0;
 
         shapes.forEach(function(s) {
             var points = [];
@@ -738,8 +736,9 @@ html_map_template = """<!DOCTYPE html>
                 var x = s.radiusY * Math.cos(angle);
                 var y = s.radiusX * Math.sin(angle);
 
-                var rotatedDx = x * Math.cos(angleRad) + (y + s.radiusX) * Math.sin(angleRad);
-                var rotatedDy = -x * Math.sin(angleRad) + (y + s.radiusX) * Math.cos(angleRad);
+                // Поворот точок відповідно до азимуту перенесення хмари blowToRad
+                var rotatedDx = x * Math.cos(blowToRad) + (y + s.radiusX) * Math.sin(blowToRad);
+                var rotatedDy = -x * Math.sin(blowToRad) + (y + s.radiusX) * Math.cos(blowToRad);
 
                 var latOffset = rotatedDy / 111320.0;
                 var lngOffset = rotatedDx / (111320.0 * Math.cos(ellipseCenter.lat * Math.PI / 180.0));
