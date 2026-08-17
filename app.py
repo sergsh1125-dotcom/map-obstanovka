@@ -187,7 +187,7 @@ points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 # ==========================================
 # 3. HTML/JS КОД КАРТИ LEAFLET
 # ==========================================
-html_map_component = """<!DOCTYPE html>
+html_map_template = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -321,18 +321,20 @@ html_map_component = """<!DOCTYPE html>
     </div>
 
 <script>
-    var ico_biological_hazard_site  = SRC_BIOLOGICAL_HAZARD_SITE;
-    var ico_cbrn_contamination_area = SRC_CBRN_CONTAMINATION_AREA;
-    var ico_cbrn_post               = SRC_CBRN_POST;
-    var ico_cbrn_recon_area         = SRC_CBRN_RECON_AREA;
-    var ico_chemical_hazard_site    = SRC_CHEMICAL_HAZARD_SITE;
-    var ico_decon_area_special      = SRC_DECON_AREA_SPECIAL;
-    var ico_decon_point_special     = SRC_DECON_POINT_SPECIAL;
-    var ico_detect_biological       = SRC_DETECT_BIOLOGICAL;
-    var ico_detect_chemical         = SRC_DETECT_CHEMICAL;
-    var ico_detect_radiation        = SRC_DETECT_RADIATION;
-    var ico_nuclear_blast           = SRC_NUCLEAR_BLAST;
-    var ico_radioactive_site        = SRC_RADIOACTIVE_SITE;
+    var DATA_FROM_PYTHON = __POINTS_JSON__;
+
+    var ico_biological_hazard_site  = "__SRC_BIOLOGICAL_HAZARD_SITE__";
+    var ico_cbrn_contamination_area = "__SRC_CBRN_CONTAMINATION_AREA__";
+    var ico_cbrn_post               = "__SRC_CBRN_POST__";
+    var ico_cbrn_recon_area         = "__SRC_CBRN_RECON_AREA__";
+    var ico_chemical_hazard_site    = "__SRC_CHEMICAL_HAZARD_SITE__";
+    var ico_decon_area_special      = "__SRC_DECON_AREA_SPECIAL__";
+    var ico_decon_point_special     = "__SRC_DECON_POINT_SPECIAL__";
+    var ico_detect_biological       = "__SRC_DETECT_BIOLOGICAL__";
+    var ico_detect_chemical         = "__SRC_DETECT_CHEMICAL__";
+    var ico_detect_radiation        = "__SRC_DETECT_RADIATION__";
+    var ico_nuclear_blast           = "__SRC_NUCLEAR_BLAST__";
+    var ico_radioactive_site        = "__SRC_RADIOACTIVE_SITE__";
 
     var map = L.map('map', { zoomControl: true }).setView([48.3, 31.1], 6);
     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
@@ -632,68 +634,49 @@ html_map_component = """<!DOCTYPE html>
         });
     }
 
+    // ЗЕСТОСУВАННЯ МЕТЕОПАРАМЕТРІВ (ВІТЕР)
     document.getElementById('applyMeteoBtn').onclick = function() {
-        var deg = parseFloat(document.getElementById('wDegInput').value) || 0; var speed = parseFloat(document.getElementById('wSpeedInput').value) || 0;
-        document.getElementById('arrow').style.transform = "rotate(" + ((deg + 180) % 360) + "deg)";
-        document.getElementById('degInfo').innerText = deg + "°"; document.getElementById('speedInfo').innerText = speed + " м/с";
+        var deg = parseFloat(document.getElementById('wDegInput').value) || 0;
+        var spd = parseFloat(document.getElementById('wSpeedInput').value) || 0;
+        document.getElementById('arrow').style.transform = 'rotate(' + deg + 'deg)';
+        document.getElementById('degInfo').innerText = deg + '°';
+        document.getElementById('speedInfo').innerText = spd + ' м/с';
     };
 
-    map.on('pm:create', function(e) {
-        if (isReconMode || e.shape === 'Line') {
-            var latlngs = e.layer.getLatLngs();
-            var totalMeters = 0;
-            for (var i = 0; i < latlngs.length - 1; i++) {
-                totalMeters += latlngs[i].distanceTo(latlngs[i + 1]);
-            }
-            var distStr = totalMeters >= 1000 ? (totalMeters / 1000).toFixed(2) + " км" : Math.round(totalMeters) + " м";
-            var routeName = prompt("Введіть номер/назву маршруту розвідки:", "Маршрут розвідки №1");
-            var fullLabel = (routeName ? routeName : "Маршрут розвідки") + " (" + distStr + ")";
-            
-            e.layer.setStyle({ color: '#d97706', weight: 4, dashArray: '8, 8' });
-            e.layer.bindTooltip(fullLabel, { permanent: true, direction: 'center', className: 'route-label' });
-            isReconMode = false;
-        } else if (e.shape === 'Circle') {
-            var radiusMeters = e.layer.getRadius();
-            var radiusKm = (radiusMeters / 1000).toFixed(2);
-            var labelText = "R = " + radiusKm + " км²";
-            var center = e.layer.getLatLng();
-            var latOffset = radiusMeters / 111320;
-            var topPoint = L.latLng(center.lat + latOffset, center.lng);
-            e.layer.bindTooltip(labelText, { permanent: true, direction: 'top', className: 'size-tooltip', offset: [0, -10] });
-        }
-        attachRemovalClick(e.layer, null);
-    });
-
+    // ЕКСПОРТ В PNG (ЧЕРЕЗ HTML2CANVAS)
     document.getElementById('pngBtn').onclick = function() {
-        var container = document.getElementById('mapContainer'); var controls = document.querySelector('.leaflet-control-container');
-        controls.style.display = 'none';
-        html2canvas(container, { useCORS: true, allowTaint: true }).then(function(canvas) {
-            var link = document.createElement('a'); link.download = 'CBRN_Map_Export.png'; link.href = canvas.toDataURL(); link.click();
-            controls.style.display = 'block';
+        var node = document.getElementById('mapContainer');
+        html2canvas(node, { useCORS: true, allowTaint: true }).then(function(canvas) {
+            var link = document.createElement('a');
+            link.download = 'cbrn_map_' + new Date().toISOString().slice(0,10) + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
         });
     };
-    document.getElementById('printBtn').onclick = function() { window.print(); };
+
+    // ДРУК АБО СБЕРЕЖЕННЯ В PDF
+    document.getElementById('printBtn').onclick = function() {
+        window.print();
+    };
 </script>
 </body>
 </html>
 """
 
-# ==========================================
-# 4. РЕНДЕРИНГ КАРТИ
-# ==========================================
+# Впровадження даних у JS-код перед відображенням
+rendered_html = html_map_template.replace("__POINTS_JSON__", points_json) \
+                                 .replace("__SRC_BIOLOGICAL_HAZARD_SITE__", SRC_BIOLOGICAL_HAZARD_SITE) \
+                                 .replace("__SRC_CBRN_CONTAMINATION_AREA__", SRC_CBRN_CONTAMINATION_AREA) \
+                                 .replace("__SRC_CBRN_POST__", SRC_CBRN_POST) \
+                                 .replace("__SRC_CBRN_RECON_AREA__", SRC_CBRN_RECON_AREA) \
+                                 .replace("__SRC_CHEMICAL_HAZARD_SITE__", SRC_CHEMICAL_HAZARD_SITE) \
+                                 .replace("__SRC_DECON_AREA_SPECIAL__", SRC_DECON_AREA_SPECIAL) \
+                                 .replace("__SRC_DECON_POINT_SPECIAL__", SRC_DECON_POINT_SPECIAL) \
+                                 .replace("__SRC_DETECT_BIOLOGICAL__", SRC_DETECT_BIOLOGICAL) \
+                                 .replace("__SRC_DETECT_CHEMICAL__", SRC_DETECT_CHEMICAL) \
+                                 .replace("__SRC_DETECT_RADIATION__", SRC_DETECT_RADIATION) \
+                                 .replace("__SRC_NUCLEAR_BLAST__", SRC_NUCLEAR_BLAST) \
+                                 .replace("__SRC_RADIOACTIVE_SITE__", SRC_RADIOACTIVE_SITE)
+
 with col_map:
-    final_html = html_map_component.replace("DATA_FROM_PYTHON", points_json)
-    final_html = final_html.replace("SRC_BIOLOGICAL_HAZARD_SITE", f"'{SRC_BIOLOGICAL_HAZARD_SITE}'")
-    final_html = final_html.replace("SRC_CBRN_CONTAMINATION_AREA", f"'{SRC_CBRN_CONTAMINATION_AREA}'")
-    final_html = final_html.replace("SRC_CBRN_POST", f"'{SRC_CBRN_POST}'")
-    final_html = final_html.replace("SRC_CBRN_RECON_AREA", f"'{SRC_CBRN_RECON_AREA}'")
-    final_html = final_html.replace("SRC_CHEMICAL_HAZARD_SITE", f"'{SRC_CHEMICAL_HAZARD_SITE}'")
-    final_html = final_html.replace("SRC_DECON_AREA_SPECIAL", f"'{SRC_DECON_AREA_SPECIAL}'")
-    final_html = final_html.replace("SRC_DECON_POINT_SPECIAL", f"'{SRC_DECON_POINT_SPECIAL}'")
-    final_html = final_html.replace("SRC_DETECT_BIOLOGICAL", f"'{SRC_DETECT_BIOLOGICAL}'")
-    final_html = final_html.replace("SRC_DETECT_CHEMICAL", f"'{SRC_DETECT_CHEMICAL}'")
-    final_html = final_html.replace("SRC_DETECT_RADIATION", f"'{SRC_DETECT_RADIATION}'")
-    final_html = final_html.replace("SRC_NUCLEAR_BLAST", f"'{SRC_NUCLEAR_BLAST}'")
-    final_html = final_html.replace("SRC_RADIOACTIVE_SITE", f"'{SRC_RADIOACTIVE_SITE}'")
-    
-    components.html(final_html, height=750, scrolling=False)
+    components.html(rendered_html, height=580)
