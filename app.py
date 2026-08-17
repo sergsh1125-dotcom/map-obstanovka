@@ -24,7 +24,7 @@ st.markdown("""
 .custom-header {
     margin-top: -15px !important;
     margin-bottom: 10px !important;
-    font-size: 24px;
+    font-size: 26px;
     font-weight: bold;
     color: white;
 }
