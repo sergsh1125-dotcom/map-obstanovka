@@ -277,7 +277,7 @@ with col_gui:
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
 # ==========================================
-# 3. HTML/JS КОД КАРТИ LEAFLET (ОПТИМІЗОВАНИЙ)
+# 3. HTML/JS КОД КАРТИ LEAFLET
 # ==========================================
 html_map_template = """<!DOCTYPE html>
 <html>
@@ -390,7 +390,7 @@ html_map_template = """<!DOCTYPE html>
         </div>
 
         <div class="controls-row">
-            <label>МЕТЕО — Напрямок вітру:</label>
+            <label>МЕТЕО — Напрямок вітру (звідки дме):</label>
             <input type="number" id="windInput" placeholder="Градуси (0-360)" min="0" max="360" value="0" style="width:120px;">
             <label>Швидкість вітру:</label>
             <input type="number" id="windSpeedInput" placeholder="м/с" min="0" value="2.0" step="0.1" style="width:90px;">
@@ -429,13 +429,28 @@ html_map_template = """<!DOCTYPE html>
 
     map.pm.setGlobalOptions({
         measurements: { display: true },
-        pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.35, weight: 2 },
+        pathOptions: { color: '#d97706', fillColor: '#FFD600', fillOpacity: 0.35, weight: 4 },
         pinToMarker: true
     });
     map.pm.setLang('uk');
 
+    // ОБРОБКА СТВОРЕННЯ ФІГУР ТА РУЧНОГО МАРШРУТУ
     map.on('pm:create', function(e) {
         var layer = e.layer;
+        
+        if (e.shape === 'Line' || layer instanceof L.Polyline) {
+            var latlngs = layer.getLatLngs();
+            var totalDist = 0;
+            for (var i = 0; i < latlngs.length - 1; i++) {
+                totalDist += latlngs[i].distanceTo(latlngs[i+1]);
+            }
+            var distKm = (totalDist / 1000).toFixed(2);
+            var labelTxt = "Маршрут розвідки: " + distKm + " км";
+            
+            layer.setStyle({ color: '#d97706', weight: 4, dashArray: '8, 8' });
+            layer.bindTooltip(labelTxt, { permanent: true, direction: 'center', className: 'route-label' });
+        }
+        
         if (e.shape === 'Circle') {
             var radius = layer.getRadius();
             var rTxt = radius >= 1000 ? (radius / 1000).toFixed(2) + ' км' : Math.round(radius) + ' м';
@@ -613,12 +628,16 @@ html_map_template = """<!DOCTYPE html>
     document.getElementById('stopBtn').onclick = function() { clearModes(); if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode(); };
     document.getElementById('deleteModeBtn').onclick = function() { clearModes(); map.pm.toggleGlobalRemovalMode(); };
 
-    // ОБРОБКА МЕТЕОДАНХ
+    // ОБРОБКА МЕТЕОДАНИХ (З врахуванням напрямку звідки дме вітер)
     document.getElementById('applyMeteoBtn').onclick = function() {
-        var windDeg = parseFloat(document.getElementById('windInput').value) || 0;
+        var windFromDeg = parseFloat(document.getElementById('windInput').value) || 0;
         var windSpeed = parseFloat(document.getElementById('windSpeedInput').value) || 0;
-        document.getElementById('arrow').style.transform = 'rotate(' + windDeg + 'deg)';
-        document.getElementById('degInfo').innerText = windDeg + '°';
+        
+        // Вектор перенесення хімічної хмари/повітря спрямований у протилежний бік (+180°)
+        var blowToDeg = (windFromDeg + 180) % 360;
+        
+        document.getElementById('arrow').style.transform = 'rotate(' + blowToDeg + 'deg)';
+        document.getElementById('degInfo').innerText = windFromDeg + '°';
         document.getElementById('speedInfo').innerText = windSpeed + ' м/с';
     };
 
@@ -675,8 +694,11 @@ html_map_template = """<!DOCTYPE html>
             if (isNaN(totalLength) || totalLength <= 0) return;
 
             var rX = totalLength / 2.0;
-            var windDeg = parseFloat(document.getElementById('windInput').value) || 0;
+            var windFromDeg = parseFloat(document.getElementById('windInput').value) || 0;
             var windSpeed = parseFloat(document.getElementById('windSpeedInput').value) || 0;
+
+            // Перенесення хмари відбувається по напрямку куди дме вітер
+            var blowToDeg = (windFromDeg + 180) % 360;
 
             var widthFactor = 0.40;
             if (windSpeed <= 1.5) {
@@ -691,21 +713,22 @@ html_map_template = """<!DOCTYPE html>
             var groupId = "aegl_group_" + Date.now();
 
             var shapes = [
-                { radiusX: rX * 1.0, radiusY: rY * 1.0, scale: 1.0, level: "AEGL-1", color: "#ffcc00", opacity: 0.25, groupId: groupId, tilt: windDeg },
-                { radiusX: rX * 0.6, radiusY: rY * 0.6, scale: 0.6, level: "AEGL-2", color: "#ff9900", opacity: 0.40, groupId: groupId, tilt: windDeg },
-                { radiusX: rX * 0.3, radiusY: rY * 0.3, scale: 0.3, level: "AEGL-3", color: "#cc0000", opacity: 0.65, groupId: groupId, tilt: windDeg }
+                { radiusX: rX * 1.0, radiusY: rY * 1.0, scale: 1.0, level: "AEGL-1", color: "#ffcc00", opacity: 0.25, groupId: groupId, tilt: blowToDeg },
+                { radiusX: rX * 0.6, radiusY: rY * 0.6, scale: 0.6, level: "AEGL-2", color: "#ff9900", opacity: 0.40, groupId: groupId, tilt: blowToDeg },
+                { radiusX: rX * 0.3, radiusY: rY * 0.3, scale: 0.3, level: "AEGL-3", color: "#cc0000", opacity: 0.65, groupId: groupId, tilt: blowToDeg }
             ];
 
-            renderAeglGroup(e.latlng, shapes, windDeg, windSpeed, totalLength);
+            renderAeglGroup(e.latlng, shapes, windFromDeg, windSpeed, totalLength);
             clearModes(); 
         }
     });
 
     // ОТРИСОВКА ГЕОМЕТРІЇ ЕЛІПСА
-    function renderAeglGroup(ellipseCenter, shapes, windDeg, windSpeed, totalL) {
+    function renderAeglGroup(ellipseCenter, shapes, windFromDeg, windSpeed, totalL) {
         shapes.sort((a, b) => b.radiusX - a.radiusX);
 
-        var windRad = windDeg * Math.PI / 180.0;
+        var blowToDeg = (windFromDeg + 180) % 360;
+        var windRad = blowToDeg * Math.PI / 180.0;
         var angleRad = windRad + Math.PI;
 
         shapes.forEach(function(s) {
@@ -734,7 +757,7 @@ html_map_template = """<!DOCTYPE html>
             var infoTxt = "<b>" + s.level + "</b><br>" +
                           "Довжина зони: " + Math.round(s.radiusX * 2) + " м<br>" +
                           "Ширина: " + Math.round(s.radiusY * 2) + " м<br>" +
-                          "Вітер: " + windDeg + "°, " + windSpeed + " м/с";
+                          "Вітер (звідки): " + windFromDeg + "°, " + windSpeed + " м/с";
             poly.bindTooltip(infoTxt, { permanent: false, direction: 'center' });
             attachRemovalClick(poly, null);
         });
