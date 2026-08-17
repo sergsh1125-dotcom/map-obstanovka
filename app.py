@@ -138,7 +138,7 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
     except (ValueError, TypeError):
         pass
 
-# СЕРВЕРНІ ФУНКЦІЇ ДЛЯ МАРШРУТИЗАЦІЇ ПІД PYTHON
+# СЕРВЕРНІ ФУНКЦІЇ ДЛЯ МАРШРУТИЗАЦІЇ
 def geocode_place_py(query):
     query = query.strip()
     if not query:
@@ -154,7 +154,6 @@ def geocode_place_py(query):
     search_str = query if ("україна" in query.lower() or "ukraine" in query.lower()) else f"{query}, Україна"
     headers = {'User-Agent': 'CBRN_Map_App/1.0'}
     
-    # Спроба №1: Photon API
     try:
         res = requests.get(f"https://photon.komoot.io/api/?q={requests.utils.quote(search_str)}&limit=1", headers=headers, timeout=5)
         data = res.json()
@@ -164,7 +163,6 @@ def geocode_place_py(query):
     except Exception:
         pass
 
-    # Спроба №2: Nominatim OpenStreetMap
     try:
         res = requests.get(f"https://nominatim.openstreetmap.org/search?format=json&q={requests.utils.quote(search_str)}&limit=1", headers=headers, timeout=5)
         data = res.json()
@@ -213,9 +211,9 @@ def build_autoroute_py(points_str):
 # ПАНЕЛЬ УПРАВЛІННЯ (ПРАВА ПАНЕЛЬ)
 # ==========================================
 with col_gui:
-    st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
+    st.subheader("⚙️ ПАНЕЛЬ УПРАВЛІННЯ")
     st.markdown(
-        "<div class='info-text'>ℹ️ Для нанесення точки РХ забруднення вручну клікніть на карті.</div>",
+        "<div class='info-text'>ℹ️ Для вибору координат клікніть мишкою на карті.</div>",
         unsafe_allow_html=True,
     )
     st.markdown(
@@ -223,10 +221,43 @@ with col_gui:
         unsafe_allow_html=True,
     )
 
-    with st.expander("🚗 Побудова автоматичного маршруту", expanded=True):
-        auto_route_input = st.text_input("Населені пункти (через ';'):", value="Київ; Фастів; Житомир")
-        if st.button("🛣️ Побудувати маршрут", type="primary", use_container_width=True):
-            with st.spinner("Запит геоданих та маршруту..."):
+    # 1. ПОВНІСТЮ ВІДНОВЛЕНИЙ БЛОК НАНОСЕННЯ ТОЧОК ВИМІРЮВАННЯ
+    with st.expander("➕ Параметри точки вимірювання", expanded=True):
+        m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"], key="m_type_radio")
+        m_lat = st.number_input("Широта (Lat)", value=st.session_state.captured_lat, format="%.5f", key="m_lat_input")
+        m_lon = st.number_input("Довгота (Lon)", value=st.session_state.captured_lng, format="%.5f", key="m_lon_input")
+
+        if m_type == "Радіоактивне":
+            r_val = st.number_input("Потужність дози", value=0.15, step=0.01, key="r_val_input")
+            r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год", "Р/год", "мР/год"], key="r_uni_select")
+            lbl = f"{r_val} {r_uni}"
+            ico = SRC_DETECT_RADIATION
+        else:
+            c_sub = st.text_input("Речовина", value="Іприт", key="c_sub_input")
+            c_val = st.number_input("Концентрація", value=0.10, step=0.01, key="c_val_input")
+            c_uni = st.selectbox("Одиниця виміру", ["мг/м³", "ppm", "мг/л"], key="c_uni_select")
+            lbl = f"{c_sub} - {c_val} {c_uni}"
+            ico = SRC_DETECT_CHEMICAL
+
+        m_date = datetime.now().strftime("%d.%m.%Y %H:%M")
+        st.caption(f"📅 Дата та час фіксації: {m_date}")
+
+        if st.button("📍 Нанести точку на карту", type="primary", use_container_width=True):
+            st.session_state.rkhb_points.append({
+                "lat": m_lat,
+                "lng": m_lon,
+                "label": lbl,
+                "date": datetime.now().strftime("%d.%m.%Y"),
+                "icon": ico,
+            })
+            st.success(f"Точку '{lbl}' успішно додано!")
+            st.rerun()
+
+    # 2. БЛОК АВТОМАТИЧНОГО МАРШРУТУ
+    with st.expander("🚗 Побудова автоматичного маршруту", expanded=False):
+        auto_route_input = st.text_input("Населені пункти (через ';'):", value="Київ; Фастів; Житомир", key="auto_route_txt")
+        if st.button("🛣️ Побудувати маршрут", use_container_width=True):
+            with st.spinner("Запит геоданих та розрахунок OSRM..."):
                 route_obj, err_msg = build_autoroute_py(auto_route_input)
                 if err_msg:
                     st.error(err_msg)
@@ -235,91 +266,64 @@ with col_gui:
                     st.success("Маршрут успішно нанесено!")
                     st.rerun()
 
-    with st.expander("➕ Параметри точки вимірювання", expanded=False):
-        m_type = st.radio("Тип загрязнення:", ["Радіоактивне", "Хімічне"])
-        m_lat = st.number_input("Широта (Lat)", value=st.session_state.captured_lat, format="%.5f", key=f"lat_{st.session_state.captured_lat}")
-        m_lon = st.number_input("Довгота (Lon)", value=st.session_state.captured_lng, format="%.5f", key=f"lng_{st.session_state.captured_lng}")
+    # 3. БЛОК ІМПОРТУ CSV
+    with st.expander("📊 Імпорт бази даних розвідки (CSV)", expanded=False):
+        file = st.file_uploader("Виберіть CSV файл:", type=["csv"], label_visibility="collapsed")
+        if file:
+            try:
+                df_csv = pd.read_csv(file)
+                st.dataframe(df_csv.head(3), use_container_width=True)
 
-        if m_type == "Радіоактивне":
-            r_val = st.number_input("Потужність дози", value=0.15, step=0.01)
-            r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год"])
-            lbl = f"{r_val} {r_uni}"
-            ico = SRC_DETECT_RADIATION
-        else:
-            c_sub = st.text_input("Речовина", value="Іприт")
-            c_val = st.number_input("Концентрація", value=0.10, step=0.01)
-            c_uni = st.selectbox("Одиниця виміру", ["мг/м³", "ppm"])
-            lbl = f"{c_sub} - {c_val} {c_uni}"
-            ico = SRC_DETECT_CHEMICAL
+                if st.button("📥 Додати точки з CSV", use_container_width=True):
+                    df_csv.columns = [col.strip().lower() for col in df_csv.columns]
+                    lat_col = "lat" if "lat" in df_csv.columns else None
+                    lng_col = "lon" if "lon" in df_csv.columns else ("lng" if "lng" in df_csv.columns else None)
+                    val_col = "value" if "value" in df_csv.columns else None
+                    uni_col = "unit" if "unit" in df_csv.columns else None
+                    tim_col = "time" if "time" in df_csv.columns else None
+                    typ_col = "type" if "type" in df_csv.columns else None
+                    sub_col = "substance" if "substance" in df_csv.columns else None
 
-        m_date = datetime.now().strftime("%d.%m.%Y")
-        st.caption(f"📅 Дата фіксації (авто): {m_date}")
+                    if lat_col and lng_col:
+                        for idx, row in df_csv.iterrows():
+                            val_raw = str(row[val_col]).strip() if (val_col and pd.notna(row[val_col])) else ""
+                            uni_raw = str(row[uni_col]).strip() if (uni_col and pd.notna(row[uni_col])) else ""
+                            sub_raw = str(row[sub_col]).strip() if (sub_col and pd.notna(row[sub_col])) else ""
+                            type_str = str(row[typ_col]).strip().lower() if (typ_col and pd.notna(row[typ_col])) else ""
 
-        if st.button("Нанести точку на карту"):
-            st.session_state.rkhb_points.append({
-                "lat": m_lat,
-                "lng": m_lon,
-                "label": lbl,
-                "date": m_date,
-                "icon": ico,
-            })
-            st.rerun()
+                            label_text = f"{sub_raw.capitalize()} - {val_raw} {uni_raw}" if sub_raw else f"{val_raw} {uni_raw}".strip()
+                            if not label_text:
+                                label_text = "Точка розвідки"
 
-    st.divider()
+                            date_text = str(row[tim_col]).strip() if (tim_col and pd.notna(row[tim_col])) else datetime.now().strftime("%d.%m.%Y")
 
-    st.write("📊 **Імпорт бази даних розвідки**")
-    file = st.file_uploader("Виберіть CSV файл:", type=["csv"], label_visibility="collapsed")
-    if file:
-        try:
-            df_csv = pd.read_csv(file)
-            st.dataframe(df_csv.head(3), use_container_width=True)
+                            if "хім" in type_str or "chemical" in type_str or "мг/" in uni_raw or "ppm" in uni_raw:
+                                icon_url = SRC_DETECT_CHEMICAL
+                            elif "біо" in type_str or "biological" in type_str:
+                                icon_url = SRC_DETECT_BIOLOGICAL
+                            else:
+                                icon_url = SRC_DETECT_RADIATION
 
-            if st.button("📥 Додати точки з CSV"):
-                df_csv.columns = [col.strip().lower() for col in df_csv.columns]
-                lat_col = "lat" if "lat" in df_csv.columns else None
-                lng_col = "lon" if "lon" in df_csv.columns else ("lng" if "lng" in df_csv.columns else None)
-                val_col = "value" if "value" in df_csv.columns else None
-                uni_col = "unit" if "unit" in df_csv.columns else None
-                tim_col = "time" if "time" in df_csv.columns else None
-                typ_col = "type" if "type" in df_csv.columns else None
-                sub_col = "substance" if "substance" in df_csv.columns else None
+                            st.session_state.rkhb_points.append({
+                                "lat": float(row[lat_col]),
+                                "lng": float(row[lng_col]),
+                                "label": label_text,
+                                "date": date_text,
+                                "icon": icon_url,
+                            })
+                        st.success("Дані з CSV успішно імпортовано!")
+                        st.rerun()
+            except Exception as e:
+                st.error(f"Помилка зчитування CSV: {str(e)}")
 
-                if lat_col and lng_col:
-                    for idx, row in df_csv.iterrows():
-                        val_raw = str(row[val_col]).strip() if (val_col and pd.notna(row[val_col])) else ""
-                        uni_raw = str(row[uni_col]).strip() if (uni_col and pd.notna(row[uni_col])) else ""
-                        sub_raw = str(row[sub_col]).strip() if (sub_col and pd.notna(row[sub_col])) else ""
-                        type_str = str(row[typ_col]).strip().lower() if (typ_col and pd.notna(row[typ_col])) else ""
-
-                        label_text = f"{sub_raw.capitalize()} - {val_raw} {uni_raw}" if sub_raw else f"{val_raw} {uni_raw}".strip()
-                        if not label_text:
-                            label_text = "Точка розвідки"
-
-                        date_text = str(row[tim_col]).strip() if (tim_col and pd.notna(row[tim_col])) else datetime.now().strftime("%d.%m.%Y")
-
-                        if "хім" in type_str or "chemical" in type_str or "мг/" in uni_raw or "ppm" in uni_raw:
-                            icon_url = SRC_DETECT_CHEMICAL
-                        elif "біо" in type_str or "biological" in type_str:
-                            icon_url = SRC_DETECT_BIOLOGICAL
-                        else:
-                            icon_url = SRC_DETECT_RADIATION
-
-                        st.session_state.rkhb_points.append({
-                            "lat": float(row[lat_col]),
-                            "lng": float(row[lng_col]),
-                            "label": label_text,
-                            "date": date_text,
-                            "icon": icon_url,
-                        })
-                    st.rerun()
-        except Exception as e:
-            st.error(f"Помилка: {str(e)}")
-
+    # 4. ТАБЛИЦЯ НАНЕСЕНИХ ТОЧОК
     if st.session_state.rkhb_points:
+        st.markdown("---")
+        st.write("📋 **Перелік активних точок:**")
         pts_only = [p for p in st.session_state.rkhb_points if "lat" in p]
         if pts_only:
             df_view = pd.DataFrame(pts_only)
-            st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=110)
+            st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=130)
 
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 routes_json = json.dumps(st.session_state.routes_list, ensure_ascii=False)
