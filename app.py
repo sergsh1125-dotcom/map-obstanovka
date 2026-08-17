@@ -88,28 +88,54 @@ SRC_DETECT_RADIATION = get_gh_svg_url("detect_radiation.svg")
 SRC_NUCLEAR_BLAST = get_gh_svg_url("nuclear_blast.svg")
 SRC_RADIOACTIVE_SITE = get_gh_svg_url("radioactive_site.svg")
 
+# ІНІЦІАЛІЗАЦІЯ СТАНІВ STREAMLIT
 if "rkhb_points" not in st.session_state:
   st.session_state.rkhb_points = []
+
+if "routes_list" not in st.session_state:
+  st.session_state.routes_list = []
 
 if "captured_lat" not in st.session_state:
   st.session_state.captured_lat = 50.4500
 if "captured_lng" not in st.session_state:
   st.session_state.captured_lng = 30.5200
 
+# ОБРОБКА ДОДАВАННЯ МАРШРУТУ З JS
+if "add_route_data" in st.query_params:
+  try:
+    r_data = json.loads(st.query_params["add_route_data"])
+    st.session_state.routes_list.append(r_data)
+    st.query_params.clear()
+    st.rerun()
+  except Exception:
+    pass
+
 # ОБРОБКА ПОВНОГО ОЧИЩЕННЯ
 if "clear_all" in st.query_params:
   st.session_state.rkhb_points = []
+  st.session_state.routes_list = []
   st.session_state.captured_lat = 50.4500
   st.session_state.captured_lng = 30.5200
   st.query_params.clear()
   st.rerun()
 
-# ОБРОБКА ВИДАЛЕННЯ ТОЧКИ ЧЕРЕЗ КЛІК НА КАРТІ
+# ОБРОБКА ВИДАЛЕННЯ ТОЧКИ
 if "delete_point_idx" in st.query_params:
   try:
     idx_to_del = int(st.query_params["delete_point_idx"])
     if 0 <= idx_to_del < len(st.session_state.rkhb_points):
       st.session_state.rkhb_points.pop(idx_to_del)
+    st.query_params.clear()
+    st.rerun()
+  except (ValueError, TypeError):
+    pass
+
+# ОБРОБКА ВИДАЛЕННЯ МАРШРУТУ ПІСЛЯ ПІДТВЕРДЖЕННЯ
+if "delete_route_idx" in st.query_params:
+  try:
+    idx_r_del = int(st.query_params["delete_route_idx"])
+    if 0 <= idx_r_del < len(st.session_state.routes_list):
+      st.session_state.routes_list.pop(idx_r_del)
     st.query_params.clear()
     st.rerun()
   except (ValueError, TypeError):
@@ -275,6 +301,7 @@ with col_gui:
       )
 
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
+routes_json = json.dumps(st.session_state.routes_list, ensure_ascii=False)
 
 # ==========================================
 # 3. HTML/JS КОД КАРТИ LEAFLET
@@ -369,7 +396,7 @@ html_map_template = """<!DOCTYPE html>
                 <option value="ICO_NUCLEAR_BLAST">Епіцентр ядерного вибуху (nuclear_blast)</option>
                 <option value="ICO_BIOLOGICAL_HAZARD_SITE">Біологічно небезпечний об'єкт (biological_hazard_site)</option>
                 <option value="ICO_CHEMICAL_HAZARD_SITE">Хімічно небезпечний об'єкт (chemical_hazard_site)</option>
-                <option value="ICO_RADIOACTIVE_SITE">Радіаціно небезпечний об'єкт (radioactive_site)</option>
+                <option value="ICO_RADIOACTIVE_SITE">Радіаційно небезпечний об'єкт (radioactive_site)</option>
                 <option value="ICO_CBRN_CONTAMINATION_AREA">Район РХБ забруднення (cbrn_contamination_area)</option>
                 <option value="ICO_CBRN_RECON_AREA">Район РХБЗ розвідки (cbrn_recon_area)</option>
                 <option value="ICO_DECON_AREA_SPECIAL">Район спеціальної обробки (decon_area_special)</option>
@@ -403,6 +430,7 @@ html_map_template = """<!DOCTYPE html>
 
 <script>
     var DATA_FROM_PYTHON = __POINTS_JSON__;
+    var ROUTES_FROM_PYTHON = __ROUTES_JSON__;
 
     var ico_biological_hazard_site  = "__SRC_BIOLOGICAL_HAZARD_SITE__";
     var ico_cbrn_contamination_area = "__SRC_CBRN_CONTAMINATION_AREA__";
@@ -434,12 +462,22 @@ html_map_template = """<!DOCTYPE html>
     });
     map.pm.setLang('uk');
 
-    // ОБРОБКА СТВОРЕННЯ ФІГУР ТА РУЧНОГО МАРШРУТУ
+    function saveRouteToPython(routeData) {
+        var strData = JSON.stringify(routeData);
+        var url = new URL(window.parent.location.href);
+        url.searchParams.set('add_route_data', strData);
+        window.parent.history.replaceState({}, '', url);
+        window.parent.postMessage({type: "streamlit:set_query_params", params: { add_route_data: strData }}, "*");
+    }
+
+    // ОБРОБКА СТВОРЕННЯ РУЧНОГО МАРШРУТУ СУМІСНО З СЕСІЄЮ
     map.on('pm:create', function(e) {
         var layer = e.layer;
         
         if (e.shape === 'Line' || layer instanceof L.Polyline) {
             var latlngs = layer.getLatLngs();
+            var coordsArray = latlngs.map(ll => [ll.lat, ll.lng]);
+            
             var totalDist = 0;
             for (var i = 0; i < latlngs.length - 1; i++) {
                 totalDist += latlngs[i].distanceTo(latlngs[i+1]);
@@ -447,8 +485,13 @@ html_map_template = """<!DOCTYPE html>
             var distKm = (totalDist / 1000).toFixed(2);
             var labelTxt = "Маршрут розвідки: " + distKm + " км";
             
-            layer.setStyle({ color: '#d97706', weight: 4, dashArray: '8, 8' });
-            layer.bindTooltip(labelTxt, { permanent: true, direction: 'center', className: 'route-label' });
+            map.removeLayer(layer); // Видаляємо тимчасовий шар і відправляємо на збереження
+            saveRouteToPython({
+                type: 'manual',
+                coords: coordsArray,
+                label: labelTxt
+            });
+            return;
         }
         
         if (e.shape === 'Circle') {
@@ -469,21 +512,31 @@ html_map_template = """<!DOCTYPE html>
     var dateLayers = {}; 
     var layerControl = L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
 
-    function attachRemovalClick(layer, pointIndex) {
+    function attachRemovalClick(layer, pointIndex, routeIndex) {
         layer.on('click', function(e) {
-            if (map.pm.globalRemovalModeEnabled()) {
+            if (map.pm.globalRemovalModeEnabled() || routeIndex !== undefined) {
                 L.DomEvent.stopPropagation(e);
-                map.removeLayer(layer);
-                if (pointIndex !== undefined && pointIndex !== null) {
-                    var url = new URL(window.parent.location.href);
-                    url.searchParams.set('delete_point_idx', pointIndex);
-                    window.parent.history.replaceState({}, '', url);
-                    window.parent.postMessage({type: "streamlit:set_query_params", params: { delete_point_idx: pointIndex.toString() }}, "*");
+                
+                if (confirm("Ви дійсно бажаєте видалити цей елемент з карти?")) {
+                    map.removeLayer(layer);
+                    
+                    if (pointIndex !== undefined && pointIndex !== null) {
+                        var url = new URL(window.parent.location.href);
+                        url.searchParams.set('delete_point_idx', pointIndex);
+                        window.parent.history.replaceState({}, '', url);
+                        window.parent.postMessage({type: "streamlit:set_query_params", params: { delete_point_idx: pointIndex.toString() }}, "*");
+                    } else if (routeIndex !== undefined && routeIndex !== null) {
+                        var url = new URL(window.parent.location.href);
+                        url.searchParams.set('delete_route_idx', routeIndex);
+                        window.parent.history.replaceState({}, '', url);
+                        window.parent.postMessage({type: "streamlit:set_query_params", params: { delete_route_idx: routeIndex.toString() }}, "*");
+                    }
                 }
             }
         });
     }
 
+    // ВІДНОВЛЕННЯ ТОЧОК ВИМІРЮВАННЯ
     var inputPoints = DATA_FROM_PYTHON;
     if(Array.isArray(inputPoints)) {
         inputPoints.forEach(function(pt, index) {
@@ -498,8 +551,25 @@ html_map_template = """<!DOCTYPE html>
                 var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
                 var labelHtml = "<div class='cbrn-military-lbl'><span>" + pt.label + "</span><div class='cbrn-line-divider'></div><span class='cbrn-date-sub'>" + dateStr + "</span></div>";
                 marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 16], className: 'leaflet-div-icon' });
-                attachRemovalClick(marker, index);
+                attachRemovalClick(marker, index, null);
                 marker.addTo(dateLayers[dateStr]);
+            }
+        });
+    }
+
+    // ВІДНОВЛЕННЯ ТА ВІДОБРАЖЕННЯ ЗБЕРЕЖЕНИХ МАРШРУТІВ
+    var inputRoutes = ROUTES_FROM_PYTHON;
+    if (Array.isArray(inputRoutes)) {
+        inputRoutes.forEach(function(rData, rIdx) {
+            var rLayer;
+            if (rData.type === 'manual') {
+                rLayer = L.polyline(rData.coords, { color: '#d97706', weight: 4, dashArray: '8, 8' }).addTo(map);
+            } else if (rData.type === 'geojson') {
+                rLayer = L.geoJSON(rData.geometry, { style: { color: "#d97706", weight: 4, dashArray: "8, 8" } }).addTo(map);
+            }
+            if (rLayer) {
+                rLayer.bindTooltip(rData.label, { permanent: true, direction: 'center', className: 'route-label' });
+                attachRemovalClick(rLayer, null, rIdx);
             }
         });
     }
@@ -558,6 +628,7 @@ html_map_template = """<!DOCTYPE html>
         return null;
     }
 
+    // АВТОМАТИЧНИЙ МАРШРУТ ІЗ ЗБЕРЕЖЕННЯМ В СЕСІЮ
     document.getElementById('buildAutoRouteBtn').onclick = async function() {
         var inputVal = document.getElementById('autoRouteInput').value.trim();
         if (!inputVal) { alert("Введіть населені пункти через ';'"); return; }
@@ -591,10 +662,11 @@ html_map_template = """<!DOCTYPE html>
                 var durMin = Math.round(routeData.duration / 60);
                 var labelName = "Маршрут: " + pointsList.join(" ➔ ") + " (" + distKm + " км, ~" + durMin + " хв)";
 
-                var rLayer = L.geoJSON(routeData.geometry, { style: { color: "#d97706", weight: 4, dashArray: "8, 8" } }).addTo(map);
-                rLayer.bindTooltip(labelName, { permanent: true, direction: 'center', className: 'route-label' });
-                attachRemovalClick(rLayer, null);
-                map.fitBounds(rLayer.getBounds(), { padding: [30, 30] });
+                saveRouteToPython({
+                    type: 'geojson',
+                    geometry: routeData.geometry,
+                    label: labelName
+                });
             } else { alert("Помилка побудови маршруту."); }
         } catch(err) { alert("Помилка: " + err); } 
         finally { btn.innerText = "Маршрут (автоматичний режим)"; btn.disabled = false; }
@@ -633,7 +705,6 @@ html_map_template = """<!DOCTYPE html>
         var windFromDeg = parseFloat(document.getElementById('windInput').value) || 0;
         var windSpeed = parseFloat(document.getElementById('windSpeedInput').value) || 0;
         
-        // Стрілка показує напрямок КУДИ дме вітер (перенесення)
         var blowToDeg = (windFromDeg + 180) % 360;
         
         document.getElementById('arrow').style.transform = 'rotate(' + blowToDeg + 'deg)';
@@ -676,7 +747,7 @@ html_map_template = """<!DOCTYPE html>
 
         if (activeIcon) {
             var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
-            attachRemovalClick(m, null);
+            attachRemovalClick(m, null, null);
         }
         if (textMode) {
             var txt = prompt("Введіть оперативно-тактичний підпис:");
@@ -684,7 +755,7 @@ html_map_template = """<!DOCTYPE html>
                 var tm = L.marker(e.latlng, {
                     icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px;'>"+txt+"</span>" })
                 }).addTo(map);
-                attachRemovalClick(tm, null);
+                attachRemovalClick(tm, null, null);
             }
         }
         if (ellipseMode) {
@@ -724,8 +795,6 @@ html_map_template = """<!DOCTYPE html>
     function renderAeglGroup(ellipseCenter, shapes, windFromDeg, windSpeed, totalL) {
         shapes.sort((a, b) => b.radiusX - a.radiusX);
 
-        // Вітер дме ЗВІДКИ (windFromDeg). 
-        // Кут перенесення хмари КУДИ дме вітер = (windFromDeg + 180) % 360
         var blowToDeg = (windFromDeg + 180) % 360;
         var blowToRad = blowToDeg * Math.PI / 180.0;
 
@@ -736,7 +805,6 @@ html_map_template = """<!DOCTYPE html>
                 var x = s.radiusY * Math.cos(angle);
                 var y = s.radiusX * Math.sin(angle);
 
-                // Поворот точок відповідно до азимуту перенесення хмари blowToRad
                 var rotatedDx = x * Math.cos(blowToRad) + (y + s.radiusX) * Math.sin(blowToRad);
                 var rotatedDy = -x * Math.sin(blowToRad) + (y + s.radiusX) * Math.cos(blowToRad);
 
@@ -758,7 +826,7 @@ html_map_template = """<!DOCTYPE html>
                           "Ширина: " + Math.round(s.radiusY * 2) + " м<br>" +
                           "Вітер (звідки): " + windFromDeg + "°, " + windSpeed + " м/с";
             poly.bindTooltip(infoTxt, { permanent: false, direction: 'center' });
-            attachRemovalClick(poly, null);
+            attachRemovalClick(poly, null, null);
         });
     }
 </script>
@@ -768,6 +836,7 @@ html_map_template = """<!DOCTYPE html>
 # Заміна шаблонів у кінцевий HTML код
 rendered_html = (
     html_map_template.replace("__POINTS_JSON__", points_json)
+    .replace("__ROUTES_JSON__", routes_json)
     .replace("__SRC_BIOLOGICAL_HAZARD_SITE__", SRC_BIOLOGICAL_HAZARD_SITE)
     .replace("__SRC_CBRN_CONTAMINATION_AREA__", SRC_CBRN_CONTAMINATION_AREA)
     .replace("__SRC_CBRN_POST__", SRC_CBRN_POST)
