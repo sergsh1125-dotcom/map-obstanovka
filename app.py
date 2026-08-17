@@ -91,6 +91,22 @@ SRC_RADIOACTIVE_SITE = get_gh_svg_url("radioactive_site.svg")
 if "rkhb_points" not in st.session_state:
   st.session_state.rkhb_points = []
 
+# Окремо зберігаємо оперативну обстановку карти:
+# кола, еліпси, полігони, маршрути, умовні знаки та тексти.
+if "map_objects" not in st.session_state:
+  st.session_state.map_objects = []
+
+# Після st.rerun() відновлюємо обстановку з query-параметра,
+# який перед повторним запуском зберігає JavaScript-карта.
+if "map_state" in st.query_params:
+  try:
+    raw_map_state = st.query_params["map_state"]
+    parsed_map_state = json.loads(raw_map_state) if raw_map_state else []
+    if isinstance(parsed_map_state, list):
+      st.session_state.map_objects = parsed_map_state
+  except (json.JSONDecodeError, TypeError, ValueError):
+    pass
+
 if "captured_lat" not in st.session_state:
   st.session_state.captured_lat = 50.4500
 if "captured_lng" not in st.session_state:
@@ -99,6 +115,7 @@ if "captured_lng" not in st.session_state:
 # ОБРОБКА ПОВНОГО ОЧИЩЕННЯ
 if "clear_all" in st.query_params:
   st.session_state.rkhb_points = []
+  st.session_state.map_objects = []
   st.session_state.captured_lat = 50.4500
   st.session_state.captured_lng = 30.5200
   st.query_params.clear()
@@ -275,6 +292,7 @@ with col_gui:
       )
 
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
+map_objects_json = json.dumps(st.session_state.map_objects, ensure_ascii=False)
 
 # ==========================================
 # 3. HTML/JS КОД КАРТИ LEAFLET
@@ -403,6 +421,7 @@ html_map_template = """<!DOCTYPE html>
 
 <script>
     var DATA_FROM_PYTHON = __POINTS_JSON__;
+    var SAVED_MAP_OBJECTS = __MAP_OBJECTS_JSON__;
 
     var ico_biological_hazard_site  = "__SRC_BIOLOGICAL_HAZARD_SITE__";
     var ico_cbrn_contamination_area = "__SRC_CBRN_CONTAMINATION_AREA__";
@@ -438,7 +457,8 @@ html_map_template = """<!DOCTYPE html>
     map.on('pm:create', function(e) {
         var layer = e.layer;
         
-        if (e.shape === 'Line' || layer instanceof L.Polyline) {
+        if (e.shape === 'Line') {
+            layer.__cbrnType = 'route';
             var latlngs = layer.getLatLngs();
             var totalDist = 0;
             for (var i = 0; i < latlngs.length - 1; i++) {
@@ -446,34 +466,139 @@ html_map_template = """<!DOCTYPE html>
             }
             var distKm = (totalDist / 1000).toFixed(2);
             var labelTxt = "Маршрут розвідки: " + distKm + " км";
-            
+            layer.__cbrnLabel = labelTxt;
             layer.setStyle({ color: '#d97706', weight: 4, dashArray: '8, 8' });
             layer.bindTooltip(labelTxt, { permanent: true, direction: 'center', className: 'route-label' });
         }
         
         if (e.shape === 'Circle') {
+            layer.__cbrnType = 'circle';
             var radius = layer.getRadius();
             var rTxt = radius >= 1000 ? (radius / 1000).toFixed(2) + ' км' : Math.round(radius) + ' м';
-            layer.bindTooltip("Радіус: " + rTxt, { permanent: true, direction: 'center', className: 'route-label' });
+            layer.__cbrnLabel = "Радіус: " + rTxt;
+            layer.bindTooltip(layer.__cbrnLabel, { permanent: true, direction: 'center', className: 'route-label' });
             
             layer.on('pm:change', function(ev) {
                 var newR = ev.layer.getRadius();
                 var newTxt = newR >= 1000 ? (newR / 1000).toFixed(2) + ' км' : Math.round(newR) + ' м';
-                ev.layer.setTooltipContent("Радіус: " + newTxt);
+                ev.layer.__cbrnLabel = "Радіус: " + newTxt;
+                ev.layer.setTooltipContent(ev.layer.__cbrnLabel);
+                saveMapState();
             });
+        } else if (e.shape === 'Polygon') {
+            layer.__cbrnType = 'polygon';
+        } else if (e.shape === 'Rectangle') {
+            layer.__cbrnType = 'polygon';
         }
         attachRemovalClick(layer, null);
+        saveMapState();
     });
 
     var baseMaps = { "🗺️ Карта OSM": osmLayer, "🛰️ Супутник Google": satLayer };
     var dateLayers = {}; 
     var layerControl = L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
 
+    function flattenLatLngs(raw) {
+        if (!Array.isArray(raw)) return [];
+        if (raw.length > 0 && Array.isArray(raw[0])) {
+            raw = raw[0];
+        }
+        return raw.filter(function(p) { return p && typeof p.lat === 'number' && typeof p.lng === 'number'; });
+    }
+
+    function sampleLatLngs(raw, maxPoints) {
+        var arr = flattenLatLngs(raw);
+        if (arr.length <= maxPoints) return arr;
+        var step = Math.ceil(arr.length / maxPoints);
+        var out = [];
+        for (var i = 0; i < arr.length; i += step) out.push(arr[i]);
+        if (out[out.length - 1] !== arr[arr.length - 1]) out.push(arr[arr.length - 1]);
+        return out;
+    }
+
+    function getTooltipText(layer) {
+        if (layer.__cbrnLabel) return layer.__cbrnLabel;
+        var tooltip = layer.getTooltip && layer.getTooltip();
+        if (tooltip && tooltip.getContent) return tooltip.getContent();
+        return '';
+    }
+
+    function captureMapObjects() {
+        var objects = [];
+        map.eachLayer(function(layer) {
+            if (!layer.__cbrnType || layer.__rkhbPoint) return;
+
+            var type = layer.__cbrnType;
+            if (type === 'circle' && layer.getLatLng && layer.getRadius) {
+                var c = layer.getLatLng();
+                objects.push({
+                    type: 'circle',
+                    lat: c.lat, lng: c.lng, radius: layer.getRadius(),
+                    color: (layer.options && layer.options.color) || '#d97706',
+                    fillColor: (layer.options && layer.options.fillColor) || '#FFD600',
+                    fillOpacity: (layer.options && layer.options.fillOpacity !== undefined) ? layer.options.fillOpacity : 0.35,
+                    weight: (layer.options && layer.options.weight) || 4,
+                    label: getTooltipText(layer)
+                });
+            } else if ((type === 'polygon' || type === 'route') && layer.getLatLngs) {
+                var pts = sampleLatLngs(layer.getLatLngs(), 300).map(function(p) { return [p.lat, p.lng]; });
+                if (pts.length < 2) return;
+                objects.push({
+                    type: type,
+                    points: pts,
+                    color: (layer.options && layer.options.color) || '#d97706',
+                    fillColor: (layer.options && layer.options.fillColor) || '#FFD600',
+                    fillOpacity: (layer.options && layer.options.fillOpacity !== undefined) ? layer.options.fillOpacity : 0.35,
+                    weight: (layer.options && layer.options.weight) || 4,
+                    dashArray: (layer.options && layer.options.dashArray) || null,
+                    label: getTooltipText(layer)
+                });
+            } else if (type === 'autoRoute' && layer.__cbrnPoints) {
+                objects.push({
+                    type: 'autoRoute',
+                    points: layer.__cbrnPoints,
+                    color: (layer.options && layer.options.color) || '#d97706',
+                    weight: (layer.options && layer.options.weight) || 4,
+                    dashArray: (layer.options && layer.options.dashArray) || '8, 8',
+                    label: getTooltipText(layer)
+                });
+            } else if (type === 'sign' && layer.getLatLng) {
+                var s = layer.getLatLng();
+                objects.push({
+                    type: 'sign', lat: s.lat, lng: s.lng,
+                    icon: layer.__cbrnIcon || '',
+                    size: [32, 32]
+                });
+            } else if (type === 'text' && layer.getLatLng) {
+                var t = layer.getLatLng();
+                objects.push({
+                    type: 'text', lat: t.lat, lng: t.lng,
+                    text: layer.__cbrnText || ''
+                });
+            }
+        });
+        return objects;
+    }
+
+    function saveMapState() {
+        try {
+            var state = captureMapObjects();
+            var encoded = JSON.stringify(state);
+            var url = new URL(window.parent.location.href);
+            url.searchParams.set('map_state', encoded);
+            window.parent.history.replaceState({}, '', url);
+            window.parent.postMessage({type: "streamlit:set_query_params", params: { map_state: encoded }}, "*");
+        } catch (err) {
+            console.warn('Не вдалося зберегти обстановку карти:', err);
+        }
+    }
+
     function attachRemovalClick(layer, pointIndex) {
         layer.on('click', function(e) {
             if (map.pm.globalRemovalModeEnabled()) {
                 L.DomEvent.stopPropagation(e);
                 map.removeLayer(layer);
+                saveMapState();
                 if (pointIndex !== undefined && pointIndex !== null) {
                     var url = new URL(window.parent.location.href);
                     url.searchParams.set('delete_point_idx', pointIndex);
@@ -496,6 +621,7 @@ html_map_template = """<!DOCTYPE html>
             if(pt.lat && pt.lng) {
                 var customIcon = L.icon({ iconUrl: pt.icon, iconSize: [32, 32], iconAnchor: [16, 16] });
                 var marker = L.marker([pt.lat, pt.lng], { icon: customIcon });
+                marker.__rkhbPoint = true;
                 var labelHtml = "<div class='cbrn-military-lbl'><span>" + pt.label + "</span><div class='cbrn-line-divider'></div><span class='cbrn-date-sub'>" + dateStr + "</span></div>";
                 marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 16], className: 'leaflet-div-icon' });
                 attachRemovalClick(marker, index);
@@ -522,6 +648,7 @@ html_map_template = """<!DOCTYPE html>
                 layerControl.removeLayer(dateLayers[k]);
             });
             dateLayers = {};
+            saveMapState();
 
             var url = new URL(window.parent.location.href);
             url.searchParams.set('clear_all', '1');
@@ -592,9 +719,13 @@ html_map_template = """<!DOCTYPE html>
                 var labelName = "Маршрут: " + pointsList.join(" ➔ ") + " (" + distKm + " км, ~" + durMin + " хв)";
 
                 var rLayer = L.geoJSON(routeData.geometry, { style: { color: "#d97706", weight: 4, dashArray: "8, 8" } }).addTo(map);
+                rLayer.__cbrnType = 'autoRoute';
+                rLayer.__cbrnLabel = labelName;
+                rLayer.__cbrnPoints = routeData.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
                 rLayer.bindTooltip(labelName, { permanent: true, direction: 'center', className: 'route-label' });
                 attachRemovalClick(rLayer, null);
                 map.fitBounds(rLayer.getBounds(), { padding: [30, 30] });
+                saveMapState();
             } else { alert("Помилка побудови маршруту."); }
         } catch(err) { alert("Помилка: " + err); } 
         finally { btn.innerText = "Маршрут (автоматичний режим)"; btn.disabled = false; }
@@ -676,7 +807,10 @@ html_map_template = """<!DOCTYPE html>
 
         if (activeIcon) {
             var m = L.marker(e.latlng, { icon: L.icon({ iconUrl: activeIcon, iconSize: [32, 32], iconAnchor: [16, 16] }) }).addTo(map);
+            m.__cbrnType = 'sign';
+            m.__cbrnIcon = activeIcon;
             attachRemovalClick(m, null);
+            saveMapState();
         }
         if (textMode) {
             var txt = prompt("Введіть оперативно-тактичний підпис:");
@@ -684,7 +818,10 @@ html_map_template = """<!DOCTYPE html>
                 var tm = L.marker(e.latlng, {
                     icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px;'>"+txt+"</span>" })
                 }).addTo(map);
+                tm.__cbrnType = 'text';
+                tm.__cbrnText = txt;
                 attachRemovalClick(tm, null);
+                saveMapState();
             }
         }
         if (ellipseMode) {
@@ -757,10 +894,76 @@ html_map_template = """<!DOCTYPE html>
                           "Довжина зони: " + Math.round(s.radiusX * 2) + " м<br>" +
                           "Ширина: " + Math.round(s.radiusY * 2) + " м<br>" +
                           "Вітер (звідки): " + windFromDeg + "°, " + windSpeed + " м/с";
+            poly.__cbrnType = 'polygon';
+            poly.__cbrnLabel = infoTxt;
             poly.bindTooltip(infoTxt, { permanent: false, direction: 'center' });
             attachRemovalClick(poly, null);
         });
+        saveMapState();
     }
+
+    // ВІДНОВЛЕННЯ ОПЕРАТИВНОЇ ОБСТАНОВКИ ПІСЛЯ st.rerun()
+    function restoreMapObjects(objects) {
+        if (!Array.isArray(objects)) return;
+        objects.forEach(function(obj) {
+            try {
+                if (obj.type === 'circle') {
+                    var cLayer = L.circle([obj.lat, obj.lng], {
+                        radius: obj.radius, color: obj.color || '#d97706',
+                        fillColor: obj.fillColor || '#FFD600',
+                        fillOpacity: obj.fillOpacity !== undefined ? obj.fillOpacity : 0.35,
+                        weight: obj.weight || 4
+                    }).addTo(map);
+                    cLayer.__cbrnType = 'circle';
+                    cLayer.__cbrnLabel = obj.label || '';
+                    if (cLayer.__cbrnLabel) cLayer.bindTooltip(cLayer.__cbrnLabel, { permanent: true, direction: 'center', className: 'route-label' });
+                    cLayer.on('pm:change', function(ev) {
+                        var newR = ev.layer.getRadius();
+                        ev.layer.__cbrnLabel = newR >= 1000 ? 'Радіус: ' + (newR / 1000).toFixed(2) + ' км' : 'Радіус: ' + Math.round(newR) + ' м';
+                        if (ev.layer.getTooltip()) ev.layer.setTooltipContent(ev.layer.__cbrnLabel);
+                        saveMapState();
+                    });
+                    attachRemovalClick(cLayer, null);
+                } else if (obj.type === 'polygon') {
+                    var pLayer = L.polygon(obj.points || [], {
+                        color: obj.color || 'black', weight: obj.weight || 1,
+                        fillColor: obj.fillColor || '#FFD600',
+                        fillOpacity: obj.fillOpacity !== undefined ? obj.fillOpacity : 0.35
+                    }).addTo(map);
+                    pLayer.__cbrnType = 'polygon';
+                    pLayer.__cbrnLabel = obj.label || '';
+                    if (pLayer.__cbrnLabel) pLayer.bindTooltip(pLayer.__cbrnLabel, { permanent: false, direction: 'center' });
+                    attachRemovalClick(pLayer, null);
+                } else if (obj.type === 'route' || obj.type === 'autoRoute') {
+                    var rRestored = L.polyline(obj.points || [], {
+                        color: obj.color || '#d97706', weight: obj.weight || 4, dashArray: obj.dashArray || '8, 8'
+                    }).addTo(map);
+                    rRestored.__cbrnType = obj.type;
+                    rRestored.__cbrnLabel = obj.label || '';
+                    if (rRestored.__cbrnLabel) rRestored.bindTooltip(rRestored.__cbrnLabel, { permanent: true, direction: 'center', className: 'route-label' });
+                    attachRemovalClick(rRestored, null);
+                } else if (obj.type === 'sign') {
+                    var sRestored = L.marker([obj.lat, obj.lng], {
+                        icon: L.icon({ iconUrl: obj.icon, iconSize: obj.size || [32, 32], iconAnchor: [16, 16] })
+                    }).addTo(map);
+                    sRestored.__cbrnType = 'sign';
+                    sRestored.__cbrnIcon = obj.icon || '';
+                    attachRemovalClick(sRestored, null);
+                } else if (obj.type === 'text') {
+                    var tRestored = L.marker([obj.lat, obj.lng], {
+                        icon: L.divIcon({ className: 'leaflet-div-icon', html: "<span class='cbrn-military-lbl' style='font-size:13px;'>" + obj.text + "</span>" })
+                    }).addTo(map);
+                    tRestored.__cbrnType = 'text';
+                    tRestored.__cbrnText = obj.text || '';
+                    attachRemovalClick(tRestored, null);
+                }
+            } catch (restoreErr) {
+                console.warn("Помилка відновлення об'єкта карти:", restoreErr);
+            }
+        });
+    }
+
+    restoreMapObjects(SAVED_MAP_OBJECTS);
 </script>
 </body>
 </html>"""
@@ -768,6 +971,7 @@ html_map_template = """<!DOCTYPE html>
 # Заміна шаблонів у кінцевий HTML код
 rendered_html = (
     html_map_template.replace("__POINTS_JSON__", points_json)
+    .replace("__MAP_OBJECTS_JSON__", map_objects_json)
     .replace("__SRC_BIOLOGICAL_HAZARD_SITE__", SRC_BIOLOGICAL_HAZARD_SITE)
     .replace("__SRC_CBRN_CONTAMINATION_AREA__", SRC_CBRN_CONTAMINATION_AREA)
     .replace("__SRC_CBRN_POST__", SRC_CBRN_POST)
