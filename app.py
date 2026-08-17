@@ -4,14 +4,17 @@ import json
 from datetime import datetime
 import streamlit.components.v1 as components
 
-# ==========================================
-# 1. НАЛАШТУВАННЯ СТОРІНКИ ТА СТИЛІВ STREAMLIT
-# ==========================================
-st.set_page_config(page_title="Платформа ХБРЯ", layout="wide")
-
+# КОРИГУВАННЯ СТИЛІВ ДЛЯ ПІДНЯТТЯ ІНТЕРФЕЙСУ
 st.markdown("""
 <style>
 #MainMenu, footer, header {visibility: hidden;}
+
+/* Стиснення верхнього відступу всієї сторінки */
+.block-container {
+    padding-top: 1rem !important;
+    padding-bottom: 0rem !important;
+}
+
 .stButton button {
     font-weight: bold; width: 100%; height: 3em; border-radius: 8px; 
     background-color: #FFD600 !important; color: black !important;
@@ -20,20 +23,20 @@ st.markdown("""
 .stButton button:hover { background-color: #ffea00 !important; }
 .coord-box {
     background-color: #1e1e1e !important; color: #FFD600 !important; 
-    padding: 12px; border-radius: 6px; text-align: center;
-    border: 2px solid #FFD600; font-weight: bold; font-size: 16px; margin-bottom: 15px;
+    padding: 8px; border-radius: 6px; text-align: center;
+    border: 2px solid #FFD600; font-weight: bold; font-size: 16px; margin-bottom: 10px;
 }
 .info-text {
-    font-size: 13px; color: #e0e0e0; font-style: italic; margin-bottom: 15px; line-height: 1.4;
+    font-size: 12px; color: #e0e0e0; font-style: italic; margin-bottom: 10px; line-height: 1.3;
 }
-.import-btn button {
-    background-color: #4CAF50 !important; color: white !important;
-    border: 1px solid #388E3C !important;
-}
-.import-btn button:hover { background-color: #45a049 !important; }
 </style>
 """, unsafe_allow_html=True)
 
+# Заголовок із мінімальними відступами
+st.markdown("<h3 style='margin-top: -15px; margin-bottom: 10px; color: white;'>КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ</h3>", unsafe_allow_html=True)
+
+col_map, col_gui = st.columns([3, 1])
+# далі ваш код...
 # ==========================================
 # 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО REPO GITHUB (ЧЕРЕЗ JSDELIVR CDN)
 # ==========================================
