@@ -4,40 +4,37 @@ import json
 from datetime import datetime
 import streamlit.components.v1 as components
 
-# КОРИГУВАННЯ СТИЛІВ ДЛЯ ПІДНЯТТЯ ІНТЕРФЕЙСУ
+# 1. ОБОВ'ЯЗКОВО першим рядком:
+st.set_page_config(page_title="Платформа ХБРЯ", layout="wide")
+
+# 2. Оновлений CSS (піднімає вгору і розтягує на всю ширину)
 st.markdown("""
 <style>
 #MainMenu, footer, header {visibility: hidden;}
 
-/* Стиснення верхнього відступу всієї сторінки */
-.block-container {
+/* Розтягуємо контейнер на всю ширину екрана та прибираємо верхній відступ */
+.main .block-container {
+    max-width: 100% !important;
     padding-top: 1rem !important;
     padding-bottom: 0rem !important;
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
 }
 
-.stButton button {
-    font-weight: bold; width: 100%; height: 3em; border-radius: 8px; 
-    background-color: #FFD600 !important; color: black !important;
-    border: 1px solid #cca300 !important;
-}
-.stButton button:hover { background-color: #ffea00 !important; }
-.coord-box {
-    background-color: #1e1e1e !important; color: #FFD600 !important; 
-    padding: 8px; border-radius: 6px; text-align: center;
-    border: 2px solid #FFD600; font-weight: bold; font-size: 16px; margin-bottom: 10px;
-}
-.info-text {
-    font-size: 12px; color: #e0e0e0; font-style: italic; margin-bottom: 10px; line-height: 1.3;
+/* Прибираємо зайві відступи у заголовка */
+h3 {
+    margin-top: 0px !important;
+    padding-top: 0px !important;
+    margin-bottom: 15px !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Заголовок із мінімальними відступами
-st.markdown("<h3 style='margin-top: -15px; margin-bottom: 10px; color: white;'>КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ</h3>", unsafe_allow_html=True)
+# 3. ЄДИНИЙ заголовок
+st.markdown("<h3 style='color: white;'>КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ</h3>", unsafe_allow_html=True)
 
-col_map, col_gui = st.columns([3, 1])
-# далі ваш код...
-# ==========================================
+# 4. Пропорції колонок (3 до 1)
+col_map, col_gui = st.columns([3, 1])# ==========================================
 # 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО REPO GITHUB (ЧЕРЕЗ JSDELIVR CDN)
 # ==========================================
 GITHUB_USER = "sergsh1125-dotcom"
