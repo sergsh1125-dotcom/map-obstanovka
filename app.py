@@ -191,7 +191,7 @@ html_map_template = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Map Module 1</title>
+    <title>Map Module CBRN</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.0/dist/leaflet-geoman.css" />
     
@@ -200,14 +200,14 @@ html_map_template = """<!DOCTYPE html>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
-        html, body { margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; background: #fff; }
-        #mapContainer { width: 100%; height: 430px; position: relative; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
+        html, body { margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; background: #fff; overflow: hidden; }
+        #mapContainer { width: 100%; height: 400px; position: relative; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
         #map { width: 100%; height: 100%; }
         
         #bottomControlsPanel {
-            margin-top: 8px; background: #f5f5f5; padding: 10px; border-radius: 8px;
+            margin-top: 8px; background: #f9f9f9; padding: 10px; border-radius: 8px;
             border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            max-height: 280px; overflow-y: auto;
+            box-sizing: border-box;
         }
         .controls-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
         .controls-row:last-child { margin-bottom: 0; }
@@ -238,11 +238,6 @@ html_map_template = """<!DOCTYPE html>
         .wind-arrow { font-size: 20px; display: inline-block; transition: transform 0.5s; }
         .wind-info { font-size: 9px; color: #fff; margin-top: 1px; font-weight: bold; }
 
-        .size-tooltip {
-            background: rgba(0, 0, 0, 0.85) !important; border: 1px solid #FFD600 !important;
-            color: #fff !important; font-weight: bold; font-size: 12px; padding: 4px 8px; border-radius: 4px;
-        }
-        
         .route-label {
             background: rgba(0, 0, 0, 0.85) !important; border: 1px solid #d97706 !important;
             color: #fff !important; font-size: 11px !important; font-weight: bold !important;
@@ -256,14 +251,6 @@ html_map_template = """<!DOCTYPE html>
         }
         .cbrn-line-divider { border-bottom: 2px solid #000 !important; width: 100%; display: block; margin: 2px 0; }
         .cbrn-date-sub { font-size: 11px; font-weight: bold; color: #000 !important; display: block; }
-
-        @media (max-width: 600px) {
-            #mapContainer { height: 350px; }
-            .controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-            .controls-row label { grid-column: span 2; margin-top: 4px; }
-            .controls-row select, .controls-row input { width: 100% !important; box-sizing: border-box; }
-            .panel-btn { justify-content: center; width: 100%; box-sizing: border-box; }
-        }
     </style></head>
 <body>
 
@@ -294,7 +281,7 @@ html_map_template = """<!DOCTYPE html>
                 <option value="ICO_DECON_AREA_SPECIAL">Район спеціальної обробки (decon_area_special)</option>
                 <option value="ICO_DECON_POINT_SPECIAL">Пункт спеціальної обробки (decon_point_special)</option>
             </select>
-            <button class="panel-btn" style="background: #fff3e0; border-color:#d97706; color:#b45309;" id="reconRouteBtn">Маршрут (ручний режим)</button>
+            <button class="panel-btn" style="background: #fff3e0; border-color:#d97706; color:#b45309;" id="reconRouteBtn">Маршрут (ручний)</button>
             <button class="panel-btn" style="background: #e1f5fe; border-color:#0288d1;" id="textBtn">Текст</button>
             <button class="panel-btn" style="background: #efebe9; border-color:#5d4037;" id="ellipseBtn">Еліпс AEGL</button>
             <button class="panel-btn" style="background: #ffffff; border-color: #616161;" id="stopBtn">ЗАВЕРШИТИ знак</button>
@@ -310,12 +297,12 @@ html_map_template = """<!DOCTYPE html>
 
         <div class="controls-row">
             <label>МЕТЕО — Напрямок вітру:</label>
-            <input type="number" id="wDegInput" placeholder="Градуси (0-360)" min="0" max="360" value="0" style="width:130px;">
+            <input type="number" id="windInput" placeholder="Градуси (0-360)" min="0" max="360" value="0" style="width:120px;">
             <label>Швидкість вітру:</label>
-            <input type="number" id="wSpeedInput" placeholder="м/с" min="0" value="0" step="0.1" style="width:90px;">
+            <input type="number" id="windSpeedInput" placeholder="м/с" min="0" value="2.0" step="0.1" style="width:90px;">
             
             <button class="panel-btn" style="background: #fff59d; border-color:#fbc02d;" id="applyMeteoBtn">🌀 Застосувати</button>
-            <button class="panel-btn" style="background: #c8e6c9; border-color:#388e3c; margin-left: 20px;" id="pngBtn">🖼️ Зберегти PNG</button>
+            <button class="panel-btn" style="background: #c8e6c9; border-color:#388e3c; margin-left: 15px;" id="pngBtn">🖼️ Зберегти PNG</button>
             <button class="panel-btn" style="background: #ffcdd2; border-color:#d32f2f;" id="printBtn">🖨️ Друк / PDF</button>
         </div>
     </div>
@@ -347,17 +334,26 @@ html_map_template = """<!DOCTYPE html>
     });
 
     map.pm.setGlobalOptions({
-        measurements: { display: false },
+        measurements: { display: true },
         pathOptions: { color: '#000', fillColor: '#FFD600', fillOpacity: 0.35, weight: 2 },
         pinToMarker: true
     });
     map.pm.setLang('uk');
 
-    map.on('pm:drawstart', function(e) {
-        if(e.shape === 'Circle') map.dragging.disable();
-    });
-    map.on('pm:drawend', function(e) {
-        map.dragging.enable();
+    map.on('pm:create', function(e) {
+        var layer = e.layer;
+        if (e.shape === 'Circle') {
+            var radius = layer.getRadius();
+            var rTxt = radius >= 1000 ? (radius / 1000).toFixed(2) + ' км' : Math.round(radius) + ' м';
+            layer.bindTooltip("Радіус: " + rTxt, { permanent: true, direction: 'center', className: 'route-label' });
+            
+            layer.on('pm:change', function(ev) {
+                var newR = ev.layer.getRadius();
+                var newTxt = newR >= 1000 ? (newR / 1000).toFixed(2) + ' км' : Math.round(newR) + ' м';
+                ev.layer.setTooltipContent("Радіус: " + newTxt);
+            });
+        }
+        attachRemovalClick(layer, null);
     });
 
     var baseMaps = { "🗺️ Карта OSM": osmLayer, "🛰️ Супутник Google": satLayer };
@@ -396,16 +392,6 @@ html_map_template = """<!DOCTYPE html>
                 attachRemovalClick(marker, index);
                 marker.addTo(dateLayers[dateStr]);
             }
-            else if(pt.is_route && pt.geojson) {
-                var rLayer = L.geoJSON(pt.geojson, {
-                    style: { color: "#d97706", weight: 4, dashArray: "8, 8" }
-                });
-                if(pt.label) {
-                    rLayer.bindTooltip(pt.label, { permanent: true, direction: 'center', className: 'route-label' });
-                }
-                attachRemovalClick(rLayer, index);
-                rLayer.addTo(dateLayers[dateStr]);
-            }
         });
     }
 
@@ -416,7 +402,6 @@ html_map_template = """<!DOCTYPE html>
         if(map.pm.globalDrawModeEnabled()) map.pm.disableDraw();
     }
 
-    // МИТТЄВЕ МАРШРУТНЕ ТА ШАРОВЕ ОЧИЩЕННЯ
     document.getElementById('clearAllMapBtn').onclick = function() {
         if (confirm("Ви дійсно бажаєте очистити всі знаки та маршрути з карти?")) {
             map.eachLayer(function(layer) {
@@ -436,18 +421,14 @@ html_map_template = """<!DOCTYPE html>
         }
     };
 
-    // ПОДВІЙНЕ ГЕОКОДУВАННЯ (PHOTON + NOMINATIM) ДЛЯ НАДІЙНОГО ПОШУКУ
     async function geocodePlaceJS(query) {
         if (!query) return null;
         query = query.trim();
-        
         var parts = query.split(',');
         if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
             return { lat: parseFloat(parts[0].trim()), lng: parseFloat(parts[1].trim()) };
         }
-        
         var searchStr = (query.toLowerCase().includes("україна") || query.toLowerCase().includes("ukraine")) ? query : query + ", Україна";
-        
         try {
             var pUrl = "https://photon.komoot.io/api/?q=" + encodeURIComponent(searchStr) + "&limit=1";
             var resP = await fetch(pUrl);
@@ -457,7 +438,6 @@ html_map_template = """<!DOCTYPE html>
                 return { lat: coordsP[1], lng: coordsP[0] };
             }
         } catch(e) {}
-
         try {
             var nUrl = "https://nominatim.openstreetmap.org/search?format=json&q=" + encodeURIComponent(searchStr) + "&limit=1";
             var resN = await fetch(nUrl, { headers: { 'Accept-Language': 'uk,en' } });
@@ -466,46 +446,28 @@ html_map_template = """<!DOCTYPE html>
                 return { lat: parseFloat(dataN[0].lat), lng: parseFloat(dataN[0].lon) };
             }
         } catch(e) {}
-
         return null;
     }
 
     document.getElementById('buildAutoRouteBtn').onclick = async function() {
         var inputVal = document.getElementById('autoRouteInput').value.trim();
-        if (!inputVal) {
-            alert("Введіть населені пункти через крапку з комою ';'");
-            return;
-        }
+        if (!inputVal) { alert("Введіть населені пункти через ';'"); return; }
         var pointsList = inputVal.split(';').map(p => p.trim()).filter(p => p.length > 0);
-        if (pointsList.length < 2) {
-            alert("Введіть як мінімум 2 населені пункти (наприклад: Київ; Житомир)");
-            return;
-        }
+        if (pointsList.length < 2) { alert("Введіть як мінімум 2 населені пункти"); return; }
 
         var btn = document.getElementById('buildAutoRouteBtn');
-        var originalBtnText = "Маршрут (автоматичний режим)";
-        
-        btn.innerText = "⏳ Пошук та прокладання...";
-        btn.disabled = true;
+        btn.innerText = "⏳ Пошук..."; btn.disabled = true;
 
-        var coords = [];
-        var failedPoint = null;
-
+        var coords = []; var failedPoint = null;
         for (var p of pointsList) {
             var c = await geocodePlaceJS(p);
-            if (c) {
-                coords.push(c);
-            } else {
-                failedPoint = p;
-                break;
-            }
+            if (c) coords.push(c);
+            else { failedPoint = p; break; }
         }
 
         if (failedPoint) {
-            alert("Не вдалося знайти населений пункт: '" + failedPoint + "'");
-            btn.innerText = originalBtnText;
-            btn.disabled = false;
-            return;
+            alert("Не вдалося знайти: '" + failedPoint + "'");
+            btn.innerText = "Маршрут (автоматичний режим)"; btn.disabled = false; return;
         }
 
         var coordsStr = coords.map(c => c.lng + "," + c.lat).join(";");
@@ -520,25 +482,13 @@ html_map_template = """<!DOCTYPE html>
                 var durMin = Math.round(routeData.duration / 60);
                 var labelName = "Маршрут: " + pointsList.join(" ➔ ") + " (" + distKm + " км, ~" + durMin + " хв)";
 
-                var rLayer = L.geoJSON(routeData.geometry, {
-                    style: { color: "#d97706", weight: 4, dashArray: "8, 8" }
-                }).addTo(map);
-
+                var rLayer = L.geoJSON(routeData.geometry, { style: { color: "#d97706", weight: 4, dashArray: "8, 8" } }).addTo(map);
                 rLayer.bindTooltip(labelName, { permanent: true, direction: 'center', className: 'route-label' });
                 attachRemovalClick(rLayer, null);
-
                 map.fitBounds(rLayer.getBounds(), { padding: [30, 30] });
-
-                alert("Маршрут успішно побудовано! Відстань: " + distKm + " км");
-            } else {
-                alert("Помилка побудови маршруту через сервер OSRM.");
-            }
-        } catch(err) {
-            alert("Помилка при побудові маршруту: " + err);
-        } finally {
-            btn.innerText = originalBtnText;
-            btn.disabled = false;
-        }
+            } else { alert("Помилка побудови маршруту."); }
+        } catch(err) { alert("Помилка: " + err); } 
+        finally { btn.innerText = "Маршрут (автоматичний режим)"; btn.disabled = false; }
     };
 
     document.getElementById('signSelect').onchange = function(e) {
@@ -560,12 +510,8 @@ html_map_template = """<!DOCTYPE html>
     };
     
     document.getElementById('reconRouteBtn').onclick = function() {
-        clearModes();
-        isReconMode = true;
-        map.pm.enableDraw('Line', {
-            snappable: true,
-            pathOptions: { color: '#d97706', weight: 4, dashArray: '8, 8' }
-        });
+        clearModes(); isReconMode = true;
+        map.pm.enableDraw('Line', { snappable: true, pathOptions: { color: '#d97706', weight: 4, dashArray: '8, 8' } });
     };
 
     document.getElementById('textBtn').onclick = function() { clearModes(); textMode = true; };
@@ -573,15 +519,16 @@ html_map_template = """<!DOCTYPE html>
     document.getElementById('stopBtn').onclick = function() { clearModes(); if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode(); };
     document.getElementById('deleteModeBtn').onclick = function() { clearModes(); map.pm.toggleGlobalRemovalMode(); };
 
+    // =========================================================
+    // БЛОК 1: ОБРОБКА КЛІКУ НА КАРТІ (map.on("click"))
+    // =========================================================
     map.on('click', function(e) {
         var lat = e.latlng.lat;
         var lng = e.latlng.lng;
 
         if (window.parent && window.parent.document) {
             var targetBox = window.parent.document.getElementById('pythonCoordBox');
-            if (targetBox) {
-                targetBox.innerHTML = "📍 " + lat.toFixed(5) + " , " + lng.toFixed(5);
-            }
+            if (targetBox) targetBox.innerHTML = "📍 " + lat.toFixed(5) + " , " + lng.toFixed(5);
         }
 
         if (!activeIcon && !textMode && !ellipseMode && !isReconMode) {
@@ -608,42 +555,95 @@ html_map_template = """<!DOCTYPE html>
             }
         }
         if (ellipseMode) {
-            var rX = prompt("Довжина зони AEGL (метри за вітром):", "4000"); if (!rX) return;
-            var rY = prompt("Ширина зони AEGL (метри бокова):", "1500"); if (!rY) return;
-            var deg = parseFloat(document.getElementById('wDegInput').value) || 0;
-            drawCbrnEllipse(e.latlng.lat, e.latlng.lng, parseFloat(rX), parseFloat(rY), deg);
+            var inputL = prompt("Введіть загальну довжину зони розповсюдження L (у метрах):", "4000"); 
+            if (!inputL) return;
+            var totalLength = parseFloat(inputL);
+            if (isNaN(totalLength) || totalLength <= 0) return;
+
+            // Велика піввісь
+            var rX = totalLength / 2.0;
+
+            // Зчитування напрямку та швидкості вітру
+            var windDeg = parseFloat(document.getElementById('windInput').value) || 0;
+            var windSpeed = parseFloat(document.getElementById('windSpeedInput').value) || 0;
+
+            // Обчислення widthFactor залежно від швидкості вітру
+            var widthFactor = 0.40;
+            if (windSpeed <= 1.5) {
+                widthFactor = 0.40;
+            } else if (windSpeed <= 4.0) {
+                widthFactor = 0.25;
+            } else {
+                widthFactor = 0.15;
+            }
+
+            var rY = rX * widthFactor;
+            var groupId = "aegl_group_" + Date.now();
+
+            // Формування масиву з 3 вкладених зон (100%, 60%, 30%)
+            var shapes = [
+                { radiusX: rX * 1.0, radiusY: rY * 1.0, scale: 1.0, level: "AEGL-1", color: "#ffcc00", opacity: 0.25, groupId: groupId, tilt: windDeg },
+                { radiusX: rX * 0.6, radiusY: rY * 0.6, scale: 0.6, level: "AEGL-2", color: "#ff9900", opacity: 0.40, groupId: groupId, tilt: windDeg },
+                { radiusX: rX * 0.3, radiusY: rY * 0.3, scale: 0.3, level: "AEGL-3", color: "#cc0000", opacity: 0.65, groupId: groupId, tilt: windDeg }
+            ];
+
+            renderAeglGroup(e.latlng, shapes, windDeg, windSpeed, totalLength);
             clearModes(); 
         }
     });
 
-    function drawCbrnEllipse(centerLat, centerLng, rx, ry, deg) {
-        var angles = [1, 0.6, 0.3]; var colors = ["#ffcc00", "#ff9900", "#cc0000"]; var opacities = [0.25, 0.4, 0.6];
-        var windRad = (deg + 180) * Math.PI / 180;
-        angles.forEach(function(scale, idx) {
-            var curRx = rx * scale; var curRy = ry * scale; var points = [];
+    // =========================================================
+    // БЛОК 2: ОТРИСОВКА ГЕОМЕТРІЇ (генерація полігонів)
+    // =========================================================
+    function renderAeglGroup(ellipseCenter, shapes, windDeg, windSpeed, totalL) {
+        // Сортування фігур у групі від більшої до меншої
+        shapes.sort((a, b) => b.radiusX - a.radiusX);
+
+        var windRad = windDeg * Math.PI / 180.0;
+        var angleRad = windRad + Math.PI;
+
+        shapes.forEach(function(s) {
+            var points = [];
             for (var i = 0; i <= 64; i++) {
-                var angle = (i / 64) * 2 * Math.PI;
-                var x = curRy * Math.cos(angle); var y = curRx * Math.sin(angle);
-                var rotX = x * Math.cos(windRad) + (y + curRx) * Math.sin(windRad);
-                var rotY = -x * Math.sin(windRad) + (y + curRx) * Math.cos(windRad);
-                var latOffset = rotY / 111320; var lngOffset = rotX / (111320 * Math.cos(centerLat * Math.PI / 180));
-                points.push([centerLat + latOffset, centerLng + lngOffset]);
+                var angle = (i / 64.0) * 2.0 * Math.PI;
+                var x = s.radiusY * Math.cos(angle);
+                var y = s.radiusX * Math.sin(angle);
+
+                // Вирішальний момент для посадки джерела на край еліпса: додавання + s.radiusX
+                var rotatedDx = x * Math.cos(angleRad) + (y + s.radiusX) * Math.sin(angleRad);
+                var rotatedDy = -x * Math.sin(angleRad) + (y + s.radiusX) * Math.cos(angleRad);
+
+                var latOffset = rotatedDy / 111320.0;
+                var lngOffset = rotatedDx / (111320.0 * Math.cos(ellipseCenter.lat * Math.PI / 180.0));
+
+                points.push([ellipseCenter.lat + latOffset, ellipseCenter.lng + lngOffset]);
             }
-            var poly = L.polygon(points, { color: 'black', weight: 1, fillColor: colors[idx], fillOpacity: opacities[idx] }).addTo(map);
+
+            var poly = L.polygon(points, {
+                color: 'black',
+                weight: 1,
+                fillColor: s.color,
+                fillOpacity: s.opacity
+            }).addTo(map);
+
+            var infoTxt = "<b>" + s.level + "</b><br>" +
+                          "Довжина зони: " + Math.round(s.radiusX * 2) + " м<br>" +
+                          "Ширина: " + Math.round(s.radiusY * 2) + " м<br>" +
+                          "Вітер: " + windDeg + "°, " + windSpeed + " м/с";
+                          
+            poly.bindTooltip(infoTxt, { permanent: false });
             attachRemovalClick(poly, null);
         });
     }
 
-    // ЗЕСТОСУВАННЯ МЕТЕОПАРАМЕТРІВ (ВІТЕР)
     document.getElementById('applyMeteoBtn').onclick = function() {
-        var deg = parseFloat(document.getElementById('wDegInput').value) || 0;
-        var spd = parseFloat(document.getElementById('wSpeedInput').value) || 0;
+        var deg = parseFloat(document.getElementById('windInput').value) || 0;
+        var spd = parseFloat(document.getElementById('windSpeedInput').value) || 0;
         document.getElementById('arrow').style.transform = 'rotate(' + deg + 'deg)';
         document.getElementById('degInfo').innerText = deg + '°';
         document.getElementById('speedInfo').innerText = spd + ' м/с';
     };
 
-    // ЕКСПОРТ В PNG (ЧЕРЕЗ HTML2CANVAS)
     document.getElementById('pngBtn').onclick = function() {
         var node = document.getElementById('mapContainer');
         html2canvas(node, { useCORS: true, allowTaint: true }).then(function(canvas) {
@@ -654,16 +654,12 @@ html_map_template = """<!DOCTYPE html>
         });
     };
 
-    // ДРУК АБО СБЕРЕЖЕННЯ В PDF
-    document.getElementById('printBtn').onclick = function() {
-        window.print();
-    };
+    document.getElementById('printBtn').onclick = function() { window.print(); };
 </script>
 </body>
 </html>
 """
 
-# Впровадження даних у JS-код перед відображенням
 rendered_html = html_map_template.replace("__POINTS_JSON__", points_json) \
                                  .replace("__SRC_BIOLOGICAL_HAZARD_SITE__", SRC_BIOLOGICAL_HAZARD_SITE) \
                                  .replace("__SRC_CBRN_CONTAMINATION_AREA__", SRC_CBRN_CONTAMINATION_AREA) \
@@ -679,4 +675,4 @@ rendered_html = html_map_template.replace("__POINTS_JSON__", points_json) \
                                  .replace("__SRC_RADIOACTIVE_SITE__", SRC_RADIOACTIVE_SITE)
 
 with col_map:
-    components.html(rendered_html, height=580)
+    components.html(rendered_html, height=720)
