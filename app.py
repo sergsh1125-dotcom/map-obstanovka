@@ -185,7 +185,7 @@ with col_gui:
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
 # ==========================================
-# 3. HTML/JS КОД КАРТИ LEAFLET
+# 3. HTML/JS КОД КАРТИ LEAFLET (ОПТИМІЗОВАНИЙ)
 # ==========================================
 html_map_template = """<!DOCTYPE html>
 <html>
@@ -201,24 +201,26 @@ html_map_template = """<!DOCTYPE html>
 
     <style>
         html, body { margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; background: #fff; overflow: hidden; }
-        #mapContainer { width: 100%; height: 400px; position: relative; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
+        
+        /* Збільшено висоту карти, щоб вона займала основний простір */
+        #mapContainer { width: 100%; height: 550px; position: relative; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
         #map { width: 100%; height: 100%; }
         
         #bottomControlsPanel {
-            margin-top: 8px; background: #f9f9f9; padding: 10px; border-radius: 8px;
+            margin-top: 6px; background: #f9f9f9; padding: 8px 10px; border-radius: 8px;
             border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             box-sizing: border-box;
         }
-        .controls-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+        .controls-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
         .controls-row:last-child { margin-bottom: 0; }
         
         .controls-row select, .controls-row input {
-            padding: 6px 8px; background: #fff; color: #000; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;
+            padding: 5px 8px; background: #fff; color: #000; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;
         }
         .controls-row label { font-size: 13px; font-weight: bold; color: #333; }
         
         .panel-btn {
-            padding: 6px 10px; background: #e0e0e0; color: #000; border: 1px solid #adadad;
+            padding: 5px 10px; background: #e0e0e0; color: #000; border: 1px solid #adadad;
             border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 5px;
         }
         .panel-btn:hover { background: #d4d4d4; }
@@ -235,8 +237,8 @@ html_map_template = """<!DOCTYPE html>
             border-radius: 8px; border: 1px solid #FFD600; text-align: center; width: 70px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.5);
         }
-        .wind-arrow { font-size: 20px; display: inline-block; transition: transform 0.5s; }
-        .wind-info { font-size: 9px; color: #fff; margin-top: 1px; font-weight: bold; }
+        .wind-arrow { font-size: 22px; display: inline-block; transition: transform 0.3s ease; }
+        .wind-info { font-size: 10px; color: #fff; margin-top: 1px; font-weight: bold; }
 
         .route-label {
             background: rgba(0, 0, 0, 0.85) !important; border: 1px solid #d97706 !important;
@@ -519,9 +521,7 @@ html_map_template = """<!DOCTYPE html>
     document.getElementById('stopBtn').onclick = function() { clearModes(); if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode(); };
     document.getElementById('deleteModeBtn').onclick = function() { clearModes(); map.pm.toggleGlobalRemovalMode(); };
 
-    // =========================================================
-    // БЛОК 1: ОБРОБКА КЛІКУ НА КАРТІ (map.on("click"))
-    // =========================================================
+    // ОБРОБКА КЛІКУ НА КАРТІ
     map.on('click', function(e) {
         var lat = e.latlng.lat;
         var lng = e.latlng.lng;
@@ -560,14 +560,10 @@ html_map_template = """<!DOCTYPE html>
             var totalLength = parseFloat(inputL);
             if (isNaN(totalLength) || totalLength <= 0) return;
 
-            // Велика піввісь
             var rX = totalLength / 2.0;
-
-            // Зчитування напрямку та швидкості вітру
             var windDeg = parseFloat(document.getElementById('windInput').value) || 0;
             var windSpeed = parseFloat(document.getElementById('windSpeedInput').value) || 0;
 
-            // Обчислення widthFactor залежно від швидкості вітру
             var widthFactor = 0.40;
             if (windSpeed <= 1.5) {
                 widthFactor = 0.40;
@@ -580,7 +576,6 @@ html_map_template = """<!DOCTYPE html>
             var rY = rX * widthFactor;
             var groupId = "aegl_group_" + Date.now();
 
-            // Формування масиву з 3 вкладених зон (100%, 60%, 30%)
             var shapes = [
                 { radiusX: rX * 1.0, radiusY: rY * 1.0, scale: 1.0, level: "AEGL-1", color: "#ffcc00", opacity: 0.25, groupId: groupId, tilt: windDeg },
                 { radiusX: rX * 0.6, radiusY: rY * 0.6, scale: 0.6, level: "AEGL-2", color: "#ff9900", opacity: 0.40, groupId: groupId, tilt: windDeg },
@@ -592,11 +587,8 @@ html_map_template = """<!DOCTYPE html>
         }
     });
 
-    // =========================================================
-    // БЛОК 2: ОТРИСОВКА ГЕОМЕТРІЇ (генерація полігонів)
-    // =========================================================
+    // ОТРИСОВКА ГЕОМЕТРІЇ ЕЛІПСА
     function renderAeglGroup(ellipseCenter, shapes, windDeg, windSpeed, totalL) {
-        // Сортування фігур у групі від більшої до меншої
         shapes.sort((a, b) => b.radiusX - a.radiusX);
 
         var windRad = windDeg * Math.PI / 180.0;
@@ -609,7 +601,6 @@ html_map_template = """<!DOCTYPE html>
                 var x = s.radiusY * Math.cos(angle);
                 var y = s.radiusX * Math.sin(angle);
 
-                // Вирішальний момент для посадки джерела на край еліпса: додавання + s.radiusX
                 var rotatedDx = x * Math.cos(angleRad) + (y + s.radiusX) * Math.sin(angleRad);
                 var rotatedDy = -x * Math.sin(angleRad) + (y + s.radiusX) * Math.cos(angleRad);
 
@@ -636,10 +627,15 @@ html_map_template = """<!DOCTYPE html>
         });
     }
 
+    // КОРЕКЦІЯ МЕТЕО ВІДЖЕТА (ВІДОБРАЖЕННЯ НАПРЯМКУ РУХУ ВІТРУ)
     document.getElementById('applyMeteoBtn').onclick = function() {
         var deg = parseFloat(document.getElementById('windInput').value) || 0;
         var spd = parseFloat(document.getElementById('windSpeedInput').value) || 0;
-        document.getElementById('arrow').style.transform = 'rotate(' + deg + 'deg)';
+        
+        // Вітер дме ЗВІДКИ (deg). Щоб стрілка показувала КУДИ дме вітер, додаємо 180 градусів
+        var arrowRotation = (deg + 180) % 360;
+        
+        document.getElementById('arrow').style.transform = 'rotate(' + arrowRotation + 'deg)';
         document.getElementById('degInfo').innerText = deg + '°';
         document.getElementById('speedInfo').innerText = spd + ' м/с';
     };
@@ -675,4 +671,4 @@ rendered_html = html_map_template.replace("__POINTS_JSON__", points_json) \
                                  .replace("__SRC_RADIOACTIVE_SITE__", SRC_RADIOACTIVE_SITE)
 
 with col_map:
-    components.html(rendered_html, height=720)
+    components.html(rendered_html, height=685)
