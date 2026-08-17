@@ -9,7 +9,6 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Платформа ХБРЯ", layout="wide")
 
-# Стилі
 st.markdown(
     """
 <style>
@@ -59,7 +58,6 @@ st.markdown(
 
 col_map, col_gui = st.columns([3, 1])
 
-# GITHUB CDN URLs
 GITHUB_USER = "sergsh1125-dotcom"
 GITHUB_REPO = "map-obstanovka"
 GITHUB_BRANCH = "main"
@@ -138,7 +136,7 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
     except (ValueError, TypeError):
         pass
 
-# СЕРВЕРНІ ФУНКЦІЇ ДЛЯ МАРШРУТИЗАЦІЇ
+# ГЕОКОДИНГ ТА ПОБУДОВА МАРШРУТУ OSRM
 def geocode_place_py(query):
     query = query.strip()
     if not query:
@@ -197,9 +195,13 @@ def build_autoroute_py(points_str):
             dur_min = round(route_data["duration"] / 60)
             label_name = f"Маршрут: {' ➔ '.join(names)} ({dist_km} км, ~{dur_min} хв)"
             
+            # Конвертуємо GeoJSON [lon, lat] у Leaflet [lat, lon]
+            raw_coords = route_data["geometry"]["coordinates"]
+            latlng_coords = [[c[1], c[0]] for c in raw_coords]
+            
             return {
-                "type": "geojson",
-                "geometry": route_data["geometry"],
+                "type": "manual",
+                "coords": latlng_coords,
                 "label": label_name
             }, None
         else:
@@ -208,7 +210,7 @@ def build_autoroute_py(points_str):
         return None, f"Помилка мережі при побудові маршруту: {str(e)}"
 
 # ==========================================
-# ПАНЕЛЬ УПРАВЛІННЯ (ПРАВА ПАНЕЛЬ)
+# ПАНЕЛЬ УПРАВЛІННЯ
 # ==========================================
 with col_gui:
     st.subheader("⚙️ ПАНЕЛЬ УПРАВЛІННЯ")
@@ -221,7 +223,7 @@ with col_gui:
         unsafe_allow_html=True,
     )
 
-    # 1. ПОВНІСТЮ ВІДНОВЛЕНИЙ БЛОК НАНОСЕННЯ ТОЧОК ВИМІРЮВАННЯ
+    # 1. НАНОСЕННЯ ТОЧОК ВИМІРЮВАННЯ
     with st.expander("➕ Параметри точки вимірювання", expanded=True):
         m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"], key="m_type_radio")
         m_lat = st.number_input("Широта (Lat)", value=st.session_state.captured_lat, format="%.5f", key="m_lat_input")
@@ -244,16 +246,16 @@ with col_gui:
 
         if st.button("📍 Нанести точку на карту", type="primary", use_container_width=True):
             st.session_state.rkhb_points.append({
-                "lat": m_lat,
-                "lng": m_lon,
-                "label": lbl,
+                "lat": float(m_lat),
+                "lng": float(m_lon),
+                "label": str(lbl),
                 "date": datetime.now().strftime("%d.%m.%Y"),
-                "icon": ico,
+                "icon": str(ico),
             })
             st.success(f"Точку '{lbl}' успішно додано!")
             st.rerun()
 
-    # 2. БЛОК АВТОМАТИЧНОГО МАРШРУТУ
+    # 2. АВТОМАТИЧНИЙ МАРШРУТ
     with st.expander("🚗 Побудова автоматичного маршруту", expanded=False):
         auto_route_input = st.text_input("Населені пункти (через ';'):", value="Київ; Фастів; Житомир", key="auto_route_txt")
         if st.button("🛣️ Побудувати маршрут", use_container_width=True):
@@ -266,7 +268,7 @@ with col_gui:
                     st.success("Маршрут успішно нанесено!")
                     st.rerun()
 
-    # 3. БЛОК ІМПОРТУ CSV
+    # 3. ІМПОРТ CSV
     with st.expander("📊 Імпорт бази даних розвідки (CSV)", expanded=False):
         file = st.file_uploader("Виберіть CSV файл:", type=["csv"], label_visibility="collapsed")
         if file:
@@ -316,7 +318,7 @@ with col_gui:
             except Exception as e:
                 st.error(f"Помилка зчитування CSV: {str(e)}")
 
-    # 4. ТАБЛИЦЯ НАНЕСЕНИХ ТОЧОК
+    # 4. ТАБЛИЦЯ ТОЧОК
     if st.session_state.rkhb_points:
         st.markdown("---")
         st.write("📋 **Перелік активних точок:**")
@@ -329,7 +331,7 @@ points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 routes_json = json.dumps(st.session_state.routes_list, ensure_ascii=False)
 
 # ==========================================
-# LEAFLET HTML MAP
+# LEAFLET MAP HTML
 # ==========================================
 html_map_template = """<!DOCTYPE html>
 <html>
@@ -454,7 +456,7 @@ html_map_template = """<!DOCTYPE html>
     var ico_nuclear_blast           = "__SRC_NUCLEAR_BLAST__";
     var ico_radioactive_site        = "__SRC_RADIOACTIVE_SITE__";
 
-    var map = L.map('map', { zoomControl: true }).setView([48.3, 31.1], 6);
+    var map = L.map('map', { zoomControl: true }).setView([50.45, 30.52], 7);
     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' });
     var satLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { attribution: '© Google' });
     osmLayer.addTo(map);
@@ -497,7 +499,6 @@ html_map_template = """<!DOCTYPE html>
             });
 
             if (coordsArray.length < 2) {
-                map.removeLayer(layer);
                 return;
             }
 
@@ -510,15 +511,11 @@ html_map_template = """<!DOCTYPE html>
             var distKm = (totalDist / 1000).toFixed(2);
             var labelTxt = "Маршрут розвідки: " + distKm + " км";
             
-            map.removeLayer(layer);
-            
-            setTimeout(function() {
-                saveRouteToPython({
-                    type: 'manual',
-                    coords: coordsArray,
-                    label: labelTxt
-                });
-            }, 50);
+            saveRouteToPython({
+                type: 'manual',
+                coords: coordsArray,
+                label: labelTxt
+            });
             return;
         }
         attachRemovalClick(layer, null);
@@ -550,6 +547,8 @@ html_map_template = """<!DOCTYPE html>
         });
     }
 
+    var allBounds = [];
+
     var inputPoints = DATA_FROM_PYTHON;
     if(Array.isArray(inputPoints)) {
         inputPoints.forEach(function(pt, index) {
@@ -566,33 +565,28 @@ html_map_template = """<!DOCTYPE html>
                 marker.bindTooltip(labelHtml, { permanent: true, direction: 'bottom', offset: [0, 16], className: 'leaflet-div-icon' });
                 attachRemovalClick(marker, index, null);
                 marker.addTo(dateLayers[dateStr]);
+                allBounds.push([pt.lat, pt.lng]);
             }
         });
     }
 
     var inputRoutes = ROUTES_FROM_PYTHON;
     if (Array.isArray(inputRoutes)) {
-        var routeBounds = [];
         inputRoutes.forEach(function(rData, rIdx) {
             var rLayer;
-            if (rData.type === 'manual') {
+            if (rData.coords && rData.coords.length > 0) {
                 rLayer = L.polyline(rData.coords, { color: '#d97706', weight: 4, dashArray: '8, 8' }).addTo(map);
-                rData.coords.forEach(c => routeBounds.push(c));
-            } else if (rData.type === 'geojson') {
-                rLayer = L.geoJSON(rData.geometry, { style: { color: "#d97706", weight: 4, dashArray: "8, 8" } }).addTo(map);
-                if (rData.geometry && rData.geometry.coordinates) {
-                    rData.geometry.coordinates.forEach(c => routeBounds.push([c[1], c[0]]));
+                rData.coords.forEach(c => allBounds.push(c));
+                if (rLayer) {
+                    rLayer.bindTooltip(rData.label, { permanent: true, direction: 'center', className: 'route-label' });
+                    attachRemovalClick(rLayer, null, rIdx);
                 }
             }
-            if (rLayer) {
-                rLayer.bindTooltip(rData.label, { permanent: true, direction: 'center', className: 'route-label' });
-                attachRemovalClick(rLayer, null, rIdx);
-            }
         });
-        
-        if (routeBounds.length > 0) {
-            map.fitBounds(L.latLngBounds(routeBounds), { padding: [30, 30] });
-        }
+    }
+
+    if (allBounds.length > 0) {
+        map.fitBounds(L.latLngBounds(allBounds), { padding: [30, 30] });
     }
 
     var activeIcon = ""; var textMode = false; var ellipseMode = false; var isReconMode = false;
