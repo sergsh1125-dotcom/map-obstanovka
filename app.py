@@ -1,13 +1,16 @@
-import streamlit as st
-import pandas as pd
+import base64
 import json
+import os
 from datetime import datetime
+import pandas as pd
+import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Платформа ХБРЯ", layout="wide")
 
 # Оптимізовані стилі для максимального підняття карти вгору
-st.markdown("""
+st.markdown(
+    """
 <style>
 #MainMenu, footer, header {visibility: hidden;}
 
@@ -28,14 +31,38 @@ st.markdown("""
     font-weight: bold;
     color: white;
 }
-</style>
-""", unsafe_allow_html=True)
 
-# ЄДИНИЙ заголовок (переконайтеся, що ви видалили st.header чи інші заголовки)
-st.markdown("<div class='custom-header'>КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ</div>", unsafe_allow_html=True)
+.coord-box {
+    background-color: #1e1e1e;
+    color: #00ff00;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-family: monospace;
+    font-weight: bold;
+    margin-bottom: 10px;
+    border: 1px solid #333;
+}
+
+.info-text {
+    font-size: 13px;
+    color: #aaa;
+    margin-bottom: 10px;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# ЄДИНИЙ заголовок
+st.markdown(
+    "<div class='custom-header'>КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ</div>",
+    unsafe_allow_html=True,
+)
 
 # Колонки екрана
-col_map, col_gui = st.columns([3, 1])# 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО REPO GITHUB (ЧЕРЕЗ JSDELIVR CDN)
+col_map, col_gui = st.columns([3, 1])
+
+# 🌐 НАЛАШТУВАННЯ ШЛЯХІВ ДО REPO GITHUB (ЧЕРЕЗ JSDELIVR CDN)
 # ==========================================
 GITHUB_USER = "sergsh1125-dotcom"
 GITHUB_REPO = "map-obstanovka"
@@ -43,140 +70,209 @@ GITHUB_BRANCH = "main"
 
 GITHUB_BASE_URL = f"https://cdn.jsdelivr.net/gh/{GITHUB_USER}/{GITHUB_REPO}@{GITHUB_BRANCH}/assets/svg"
 
-def get_gh_svg_url(filename):
-    return f"{GITHUB_BASE_URL}/{filename}"
 
-SRC_BIOLOGICAL_HAZARD_SITE  = get_gh_svg_url("biological_hazard_site.svg")
+def get_gh_svg_url(filename):
+  return f"{GITHUB_BASE_URL}/{filename}"
+
+
+SRC_BIOLOGICAL_HAZARD_SITE = get_gh_svg_url("biological_hazard_site.svg")
 SRC_CBRN_CONTAMINATION_AREA = get_gh_svg_url("cbrn_contamination_area.svg")
-SRC_CBRN_POST               = get_gh_svg_url("cbrn_post.svg")
-SRC_CBRN_RECON_AREA         = get_gh_svg_url("cbrn_recon_area.svg")
-SRC_CHEMICAL_HAZARD_SITE    = get_gh_svg_url("chemical_hazard_site.svg")
-SRC_DECON_AREA_SPECIAL      = get_gh_svg_url("decon_area_special.svg")
-SRC_DECON_POINT_SPECIAL     = get_gh_svg_url("decon_point_special.svg")
-SRC_DETECT_BIOLOGICAL       = get_gh_svg_url("detect_biological.svg")
-SRC_DETECT_CHEMICAL         = get_gh_svg_url("detect_chemical.svg")
-SRC_DETECT_RADIATION        = get_gh_svg_url("detect_radiation.svg")
-SRC_NUCLEAR_BLAST           = get_gh_svg_url("nuclear_blast.svg")
-SRC_RADIOACTIVE_SITE        = get_gh_svg_url("radioactive_site.svg")
+SRC_CBRN_POST = get_gh_svg_url("cbrn_post.svg")
+SRC_CBRN_RECON_AREA = get_gh_svg_url("cbrn_recon_area.svg")
+SRC_CHEMICAL_HAZARD_SITE = get_gh_svg_url("chemical_hazard_site.svg")
+SRC_DECON_AREA_SPECIAL = get_gh_svg_url("decon_area_special.svg")
+SRC_DECON_POINT_SPECIAL = get_gh_svg_url("decon_point_special.svg")
+SRC_DETECT_BIOLOGICAL = get_gh_svg_url("detect_biological.svg")
+SRC_DETECT_CHEMICAL = get_gh_svg_url("detect_chemical.svg")
+SRC_DETECT_RADIATION = get_gh_svg_url("detect_radiation.svg")
+SRC_NUCLEAR_BLAST = get_gh_svg_url("nuclear_blast.svg")
+SRC_RADIOACTIVE_SITE = get_gh_svg_url("radioactive_site.svg")
 
 if "rkhb_points" not in st.session_state:
-    st.session_state.rkhb_points = []
+  st.session_state.rkhb_points = []
 
 if "captured_lat" not in st.session_state:
-    st.session_state.captured_lat = 50.4500
+  st.session_state.captured_lat = 50.4500
 if "captured_lng" not in st.session_state:
-    st.session_state.captured_lng = 30.5200
+  st.session_state.captured_lng = 30.5200
 
 # ОБРОБКА ПОВНОГО ОЧИЩЕННЯ
 if "clear_all" in st.query_params:
-    st.session_state.rkhb_points = []
-    st.session_state.captured_lat = 50.4500
-    st.session_state.captured_lng = 30.5200
-    st.query_params.clear()
-    st.rerun()
+  st.session_state.rkhb_points = []
+  st.session_state.captured_lat = 50.4500
+  st.session_state.captured_lng = 30.5200
+  st.query_params.clear()
+  st.rerun()
 
 # ОБРОБКА ВИДАЛЕННЯ ТОЧКИ ЧЕРЕЗ КЛІК НА КАРТІ
 if "delete_point_idx" in st.query_params:
-    try:
-        idx_to_del = int(st.query_params["delete_point_idx"])
-        if 0 <= idx_to_del < len(st.session_state.rkhb_points):
-            st.session_state.rkhb_points.pop(idx_to_del)
-        st.query_params.clear()
-        st.rerun()
-    except (ValueError, TypeError):
-        pass
+  try:
+    idx_to_del = int(st.query_params["delete_point_idx"])
+    if 0 <= idx_to_del < len(st.session_state.rkhb_points):
+      st.session_state.rkhb_points.pop(idx_to_del)
+    st.query_params.clear()
+    st.rerun()
+  except (ValueError, TypeError):
+    pass
 
 if "click_lat" in st.query_params and "click_lng" in st.query_params:
-    try:
-        st.session_state.captured_lat = float(st.query_params["click_lat"])
-        st.session_state.captured_lng = float(st.query_params["click_lng"])
-    except (ValueError, TypeError):
-        pass
+  try:
+    st.session_state.captured_lat = float(st.query_params["click_lat"])
+    st.session_state.captured_lng = float(st.query_params["click_lng"])
+  except (ValueError, TypeError):
+    pass
+
 # ==========================================
 # 2. ПУЛЬТ УПРАВЛІННЯ ДАНИМИ (ПРАВА ПАНЕЛЬ)
 # ==========================================
 with col_gui:
-    st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
-    st.markdown("<div class='info-text'>ℹ️ Для нанесення точки РХ забруднення вручну клікніть у визначеній точці на карті та введіть показники.</div>", unsafe_allow_html=True)
-    st.markdown(f"<div id='pythonCoordBox' class='coord-box'>📍 {st.session_state.captured_lat:.5f} , {st.session_state.captured_lng:.5f}</div>", unsafe_allow_html=True)
-    
-    with st.expander("➕ Параметри точки вимірювання", expanded=True):
-        m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"])
-        m_lat = st.number_input("Широта (Lat)", value=st.session_state.captured_lat, format="%.5f", key=f"lat_{st.session_state.captured_lat}")
-        m_lon = st.number_input("Довгота (Lon)", value=st.session_state.captured_lng, format="%.5f", key=f"lng_{st.session_state.captured_lng}")
-        
-        if m_type == "Радіоактивне":
-            r_val = st.number_input("Потужність дози", value=0.15, step=0.01)
-            r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год"])
-            lbl = f"{r_val} {r_uni}"
-            ico = SRC_DETECT_RADIATION
-        else:
-            c_sub = st.text_input("Речовина", value="Іприт")
-            c_val = st.number_input("Концентрація", value=0.10, step=0.01)
-            c_uni = st.selectbox("Одиниця виміру", ["мг/м³", "ppm"])
-            lbl = f"{c_sub} - {c_val} {c_uni}"
-            ico = SRC_DETECT_CHEMICAL
-            
-        m_date = datetime.now().strftime("%d.%m.%Y")
-        st.caption(f"📅 Дата фіксації (авто): {m_date}")
-        
-        if st.button("Нанести точку на карту", type="primary"):
-            st.session_state.rkhb_points.append({"lat": m_lat, "lng": m_lon, "label": lbl, "date": m_date, "icon": ico})
-            st.rerun()
+  st.subheader(" ПАНЕЛЬ УПРАВЛІННЯ ")
+  st.markdown(
+      "<div class='info-text'>ℹ️ Для нанесення точки РХ загрязнення вручну"
+      " клікніть у визначеній точці на карті та введіть показники.</div>",
+      unsafe_allow_html=True,
+  )
+  st.markdown(
+      f"<div id='pythonCoordBox' class='coord-box'>📍"
+      f" {st.session_state.captured_lat:.5f} ,"
+      f" {st.session_state.captured_lng:.5f}</div>",
+      unsafe_allow_html=True,
+  )
 
-    st.divider()
-    
-    st.write("📊 **Імпорт бази даних розвідки**")
-    file = st.file_uploader("Виберіть CSV файл:", type=["csv"], label_visibility="collapsed")
-    if file:
-        try:
-            df_csv = pd.read_csv(file)
-            st.dataframe(df_csv.head(3), use_container_width=True)
-            
-            st.markdown('<div class="import-btn">', unsafe_allow_html=True)
-            if st.button("📥 Додати точки на карту з таблиці"):
-                df_csv.columns = [col.strip().lower() for col in df_csv.columns]
-                lat_col = 'lat' if 'lat' in df_csv.columns else None
-                lng_col = 'lon' if 'lon' in df_csv.columns else ('lng' if 'lng' in df_csv.columns else None)
-                val_col = 'value' if 'value' in df_csv.columns else None
-                uni_col = 'unit' if 'unit' in df_csv.columns else None
-                tim_col = 'time' if 'time' in df_csv.columns else None
-                typ_col = 'type' if 'type' in df_csv.columns else None
-                sub_col = 'substance' if 'substance' in df_csv.columns else None
-                
-                if lat_col and lng_col:
-                    for idx, row in df_csv.iterrows():
-                        val_raw = str(row[val_col]).strip() if (val_col and pd.notna(row[val_col])) else ""
-                        uni_raw = str(row[uni_col]).strip() if (uni_col and pd.notna(row[uni_col])) else ""
-                        sub_raw = str(row[sub_col]).strip() if (sub_col and pd.notna(row[sub_col])) else ""
-                        type_str = str(row[typ_col]).strip().lower() if (typ_col and pd.notna(row[typ_col])) else ""
-                        
-                        if sub_raw: label_text = f"{sub_raw.capitalize()} - {val_raw} {uni_raw}"
-                        else: label_text = f"{val_raw} {uni_raw}".strip()
-                        if not label_text: label_text = "Точка розвідки"
-                            
-                        date_text = str(row[tim_col]).strip() if (tim_col and pd.notna(row[tim_col])) else datetime.now().strftime("%d.%m.%Y")
-                        
-                        if "хім" in type_str or "chemical" in type_str or "мг/" in uni_raw or "ppm" in uni_raw:
-                            icon_url = SRC_DETECT_CHEMICAL
-                        elif "біо" in type_str or "biological" in type_str:
-                            icon_url = SRC_DETECT_BIOLOGICAL
-                        else:
-                            icon_url = SRC_DETECT_RADIATION
+  with st.expander("➕ Параметри точки вимірювання", expanded=True):
+    m_type = st.radio("Тип забруднення:", ["Радіоактивне", "Хімічне"])
+    m_lat = st.number_input(
+        "Широта (Lat)",
+        value=st.session_state.captured_lat,
+        format="%.5f",
+        key=f"lat_{st.session_state.captured_lat}",
+    )
+    m_lon = st.number_input(
+        "Довгота (Lon)",
+        value=st.session_state.captured_lng,
+        format="%.5f",
+        key=f"lng_{st.session_state.captured_lng}",
+    )
 
-                        st.session_state.rkhb_points.append({
-                            "lat": float(row[lat_col]), "lng": float(row[lng_col]),
-                            "label": label_text, "date": date_text, "icon": icon_url
-                        })
-                    st.rerun()
-        except Exception as e:
-            st.error(f"Помилка: {str(e)}")
+    if m_type == "Радіоактивне":
+      r_val = st.number_input("Потужність дози", value=0.15, step=0.01)
+      r_uni = st.selectbox("Одиниця виміру", ["мкЗв/год", "мЗв/год"])
+      lbl = f"{r_val} {r_uni}"
+      ico = SRC_DETECT_RADIATION
+    else:
+      c_sub = st.text_input("Речовина", value="Іприт")
+      c_val = st.number_input("Концентрація", value=0.10, step=0.01)
+      c_uni = st.selectbox("Одиниця виміру", ["мг/м³", "ppm"])
+      lbl = f"{c_sub} - {c_val} {c_uni}"
+      ico = SRC_DETECT_CHEMICAL
 
-    if st.session_state.rkhb_points:
-        pts_only = [p for p in st.session_state.rkhb_points if "lat" in p]
-        if pts_only:
-            df_view = pd.DataFrame(pts_only)
-            st.dataframe(df_view[["date", "label", "lat", "lng"]], use_container_width=True, height=110)
+    m_date = datetime.now().strftime("%d.%m.%Y")
+    st.caption(f"📅 Дата фіксації (авто): {m_date}")
+
+    if st.button("Нанести точку на карту", type="primary"):
+      st.session_state.rkhb_points.append({
+          "lat": m_lat,
+          "lng": m_lon,
+          "label": lbl,
+          "date": m_date,
+          "icon": ico,
+      })
+      st.rerun()
+
+  st.divider()
+
+  st.write("📊 **Імпорт бази даних розвідки**")
+  file = st.file_uploader(
+      "Виберіть CSV файл:", type=["csv"], label_visibility="collapsed"
+  )
+  if file:
+    try:
+      df_csv = pd.read_csv(file)
+      st.dataframe(df_csv.head(3), use_container_width=True)
+
+      st.markdown('<div class="import-btn">', unsafe_allow_html=True)
+      if st.button("📥 Додати точки на карту з таблиці"):
+        df_csv.columns = [col.strip().lower() for col in df_csv.columns]
+        lat_col = "lat" if "lat" in df_csv.columns else None
+        lng_col = (
+            "lon"
+            if "lon" in df_csv.columns
+            else ("lng" if "lng" in df_csv.columns else None)
+        )
+        val_col = "value" if "value" in df_csv.columns else None
+        uni_col = "unit" if "unit" in df_csv.columns else None
+        tim_col = "time" if "time" in df_csv.columns else None
+        typ_col = "type" if "type" in df_csv.columns else None
+        sub_col = "substance" if "substance" in df_csv.columns else None
+
+        if lat_col and lng_col:
+          for idx, row in df_csv.iterrows():
+            val_raw = (
+                str(row[val_col]).strip()
+                if (val_col and pd.notna(row[val_col]))
+                else ""
+            )
+            uni_raw = (
+                str(row[uni_col]).strip()
+                if (uni_col and pd.notna(row[uni_col]))
+                else ""
+            )
+            sub_raw = (
+                str(row[sub_col]).strip()
+                if (sub_col and pd.notna(row[sub_col]))
+                else ""
+            )
+            type_str = (
+                str(row[typ_col]).strip().lower()
+                if (typ_col and pd.notna(row[typ_col]))
+                else ""
+            )
+
+            if sub_raw:
+              label_text = f"{sub_raw.capitalize()} - {val_raw} {uni_raw}"
+            else:
+              label_text = f"{val_raw} {uni_raw}".strip()
+            if not label_text:
+              label_text = "Точка розвідки"
+
+            date_text = (
+                str(row[tim_col]).strip()
+                if (tim_col and pd.notna(row[tim_col]))
+                else datetime.now().strftime("%d.%m.%Y")
+            )
+
+            if (
+                "хім" in type_str
+                or "chemical" in type_str
+                or "мг/" in uni_raw
+                or "ppm" in uni_raw
+            ):
+              icon_url = SRC_DETECT_CHEMICAL
+            elif "біо" in type_str or "biological" in type_str:
+              icon_url = SRC_DETECT_BIOLOGICAL
+            else:
+              icon_url = SRC_DETECT_RADIATION
+
+            st.session_state.rkhb_points.append({
+                "lat": float(row[lat_col]),
+                "lng": float(row[lng_col]),
+                "label": label_text,
+                "date": date_text,
+                "icon": icon_url,
+            })
+          st.rerun()
+    except Exception as e:
+      st.error(f"Помилка: {str(e)}")
+
+  if st.session_state.rkhb_points:
+    pts_only = [p for p in st.session_state.rkhb_points if "lat" in p]
+    if pts_only:
+      df_view = pd.DataFrame(pts_only)
+      st.dataframe(
+          df_view[["date", "label", "lat", "lng"]],
+          use_container_width=True,
+          height=110,
+      )
 
 points_json = json.dumps(st.session_state.rkhb_points, ensure_ascii=False)
 
@@ -198,7 +294,6 @@ html_map_template = """<!DOCTYPE html>
     <style>
         html, body { margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; background: #fff; overflow: hidden; }
         
-        /* Збільшено висоту карти, щоб вона займала основний простір */
         #mapContainer { width: 100%; height: 550px; position: relative; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
         #map { width: 100%; height: 100%; }
         
@@ -249,7 +344,8 @@ html_map_template = """<!DOCTYPE html>
         }
         .cbrn-line-divider { border-bottom: 2px solid #000 !important; width: 100%; display: block; margin: 2px 0; }
         .cbrn-date-sub { font-size: 11px; font-weight: bold; color: #000 !important; display: block; }
-    </style></head>
+    </style>
+</head>
 <body>
 
     <div id="mapContainer">
@@ -517,6 +613,28 @@ html_map_template = """<!DOCTYPE html>
     document.getElementById('stopBtn').onclick = function() { clearModes(); if(map.pm.globalRemovalModeEnabled()) map.pm.toggleGlobalRemovalMode(); };
     document.getElementById('deleteModeBtn').onclick = function() { clearModes(); map.pm.toggleGlobalRemovalMode(); };
 
+    // ОБРОБКА МЕТЕОДАНХ
+    document.getElementById('applyMeteoBtn').onclick = function() {
+        var windDeg = parseFloat(document.getElementById('windInput').value) || 0;
+        var windSpeed = parseFloat(document.getElementById('windSpeedInput').value) || 0;
+        document.getElementById('arrow').style.transform = 'rotate(' + windDeg + 'deg)';
+        document.getElementById('degInfo').innerText = windDeg + '°';
+        document.getElementById('speedInfo').innerText = windSpeed + ' м/с';
+    };
+
+    document.getElementById('pngBtn').onclick = function() {
+        html2canvas(document.getElementById('mapContainer')).then(function(canvas) {
+            var a = document.createElement('a');
+            a.href = canvas.toDataURL('image/png');
+            a.download = 'cbrn_map.png';
+            a.click();
+        });
+    };
+
+    document.getElementById('printBtn').onclick = function() {
+        window.print();
+    };
+
     // ОБРОБКА КЛІКУ НА КАРТІ
     map.on('click', function(e) {
         var lat = e.latlng.lat;
@@ -617,54 +735,30 @@ html_map_template = """<!DOCTYPE html>
                           "Довжина зони: " + Math.round(s.radiusX * 2) + " м<br>" +
                           "Ширина: " + Math.round(s.radiusY * 2) + " м<br>" +
                           "Вітер: " + windDeg + "°, " + windSpeed + " м/с";
-                          
-            poly.bindTooltip(infoTxt, { permanent: false });
+            poly.bindTooltip(infoTxt, { permanent: false, direction: 'center' });
             attachRemovalClick(poly, null);
         });
     }
-
-    // КОРЕКЦІЯ МЕТЕО ВІДЖЕТА (ВІДОБРАЖЕННЯ НАПРЯМКУ РУХУ ВІТРУ)
-    document.getElementById('applyMeteoBtn').onclick = function() {
-        var deg = parseFloat(document.getElementById('windInput').value) || 0;
-        var spd = parseFloat(document.getElementById('windSpeedInput').value) || 0;
-        
-        // Вітер дме ЗВІДКИ (deg). Щоб стрілка показувала КУДИ дме вітер, додаємо 180 градусів
-        var arrowRotation = (deg + 180) % 360;
-        
-        document.getElementById('arrow').style.transform = 'rotate(' + arrowRotation + 'deg)';
-        document.getElementById('degInfo').innerText = deg + '°';
-        document.getElementById('speedInfo').innerText = spd + ' м/с';
-    };
-
-    document.getElementById('pngBtn').onclick = function() {
-        var node = document.getElementById('mapContainer');
-        html2canvas(node, { useCORS: true, allowTaint: true }).then(function(canvas) {
-            var link = document.createElement('a');
-            link.download = 'cbrn_map_' + new Date().toISOString().slice(0,10) + '.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        });
-    };
-
-    document.getElementById('printBtn').onclick = function() { window.print(); };
 </script>
 </body>
-</html>
-"""
+</html>"""
 
-rendered_html = html_map_template.replace("__POINTS_JSON__", points_json) \
-                                 .replace("__SRC_BIOLOGICAL_HAZARD_SITE__", SRC_BIOLOGICAL_HAZARD_SITE) \
-                                 .replace("__SRC_CBRN_CONTAMINATION_AREA__", SRC_CBRN_CONTAMINATION_AREA) \
-                                 .replace("__SRC_CBRN_POST__", SRC_CBRN_POST) \
-                                 .replace("__SRC_CBRN_RECON_AREA__", SRC_CBRN_RECON_AREA) \
-                                 .replace("__SRC_CHEMICAL_HAZARD_SITE__", SRC_CHEMICAL_HAZARD_SITE) \
-                                 .replace("__SRC_DECON_AREA_SPECIAL__", SRC_DECON_AREA_SPECIAL) \
-                                 .replace("__SRC_DECON_POINT_SPECIAL__", SRC_DECON_POINT_SPECIAL) \
-                                 .replace("__SRC_DETECT_BIOLOGICAL__", SRC_DETECT_BIOLOGICAL) \
-                                 .replace("__SRC_DETECT_CHEMICAL__", SRC_DETECT_CHEMICAL) \
-                                 .replace("__SRC_DETECT_RADIATION__", SRC_DETECT_RADIATION) \
-                                 .replace("__SRC_NUCLEAR_BLAST__", SRC_NUCLEAR_BLAST) \
-                                 .replace("__SRC_RADIOACTIVE_SITE__", SRC_RADIOACTIVE_SITE)
+# Заміна шаблонів у кінцевий HTML код
+rendered_html = (
+    html_map_template.replace("__POINTS_JSON__", points_json)
+    .replace("__SRC_BIOLOGICAL_HAZARD_SITE__", SRC_BIOLOGICAL_HAZARD_SITE)
+    .replace("__SRC_CBRN_CONTAMINATION_AREA__", SRC_CBRN_CONTAMINATION_AREA)
+    .replace("__SRC_CBRN_POST__", SRC_CBRN_POST)
+    .replace("__SRC_CBRN_RECON_AREA__", SRC_CBRN_RECON_AREA)
+    .replace("__SRC_CHEMICAL_HAZARD_SITE__", SRC_CHEMICAL_HAZARD_SITE)
+    .replace("__SRC_DECON_AREA_SPECIAL__", SRC_DECON_AREA_SPECIAL)
+    .replace("__SRC_DECON_POINT_SPECIAL__", SRC_DECON_POINT_SPECIAL)
+    .replace("__SRC_DETECT_BIOLOGICAL__", SRC_DETECT_BIOLOGICAL)
+    .replace("__SRC_DETECT_CHEMICAL__", SRC_DETECT_CHEMICAL)
+    .replace("__SRC_DETECT_RADIATION__", SRC_DETECT_RADIATION)
+    .replace("__SRC_NUCLEAR_BLAST__", SRC_NUCLEAR_BLAST)
+    .replace("__SRC_RADIOACTIVE_SITE__", SRC_RADIOACTIVE_SITE)
+)
 
 with col_map:
-    components.html(rendered_html, height=700)
+  components.html(rendered_html, height=720, scrolling=False)
