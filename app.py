@@ -1,4 +1,6 @@
+import base64
 import json
+import os
 from datetime import datetime
 
 import pandas as pd
@@ -190,7 +192,7 @@ if "map_state" in st.query_params:
 
 
 # =========================================================
-# ПОЛНОЕ ОЧИЩЕННЯ
+# ПОЛНОЕ ОЧИЩЕНИЕ
 # =========================================================
 
 if "clear_all" in st.query_params:
@@ -661,7 +663,7 @@ map_objects_json = json.dumps(
 
 html_map_template = r"""
 <!DOCTYPE html>
-<html lang="uk">
+<html>
 
 <head>
 
@@ -997,72 +999,42 @@ body {
 
 
 /* ==========================================
-   ШПИЛЬКИ НАЧАЛА / КОНЦА МАРШРУТА
+   МАРКЕРЫ НАЧАЛА / КОНЦА МАРШРУТА
    ========================================== */
 
-.route-pin {
-
-    position: relative;
+.route-endpoint {
 
     width: 18px;
 
-    height: 30px;
-
-    background: transparent !important;
-}
-
-
-.route-pin::before {
-
-    content: "";
-
-    position: absolute;
-
-    left: 8px;
-
-    top: 9px;
-
-    width: 2px;
-
-    height: 19px;
-
-    background: #222;
-
-    border-radius: 1px;
-}
-
-
-.route-pin::after {
-
-    content: "";
-
-    position: absolute;
-
-    left: 3px;
-
-    top: 0;
-
-    width: 12px;
-
-    height: 12px;
+    height: 18px;
 
     border-radius: 50%;
 
-    border: 2px solid white;
+    border: 3px solid white;
 
     box-shadow:
-        0 0 0 1px #222,
-        0 2px 5px rgba(0,0,0,0.45);
+        0 0 0 2px #222,
+        0 2px 5px rgba(0,0,0,0.5);
+
+    text-align: center;
+
+    font-size: 10px;
+
+    font-weight: bold;
+
+    line-height: 18px;
+
+    color: white;
 }
 
 
-.route-pin-start::after {
+.route-start {
 
-    background: #00a000;
+    background: #008000;
 }
 
 
-.route-pin-finish::after {
+.route-finish {
 
     background: #d00000;
 }
@@ -1345,6 +1317,8 @@ id="applyMeteoBtn"
 </button>
 
 
+<!-- HTML -->
+
 <button
 class="panel-btn btn-html"
 id="htmlBtn"
@@ -1352,6 +1326,8 @@ id="htmlBtn"
 🌐 Зберегти HTML
 </button>
 
+
+<!-- PDF -->
 
 <button
 class="panel-btn"
@@ -1633,14 +1609,13 @@ function getTooltipText(layer) {
 
 
 // ========================================================
-// ШПИЛЬКА МАРШРУТА
+// МАРКЕР НАЧАЛА МАРШРУТА
 // ========================================================
 
 function createRouteEndpoint(
     latlng,
     type,
-    label,
-    routeId
+    label
 ) {
 
     var isStart =
@@ -1653,26 +1628,32 @@ function createRouteEndpoint(
             className: '',
 
             html:
-                '<div class="route-pin '
+                '<div class="route-endpoint '
                 +
                 (
                     isStart
-                    ?
-                    'route-pin-start'
-                    :
-                    'route-pin-finish'
+                    ? 'route-start'
+                    : 'route-finish'
                 )
                 +
-                '"></div>',
+                '">'
+                +
+                (
+                    isStart
+                    ? 'Н'
+                    : 'К'
+                )
+                +
+                '</div>',
 
             iconSize: [
-                18,
-                30
+                24,
+                24
             ],
 
             iconAnchor: [
-                9,
-                30
+                12,
+                12
             ]
 
         });
@@ -1682,11 +1663,8 @@ function createRouteEndpoint(
         L.marker(
             latlng,
             {
-                icon:
-                    icon,
-
-                zIndexOffset:
-                    1000
+                icon: icon,
+                zIndexOffset: 1000
             }
         ).addTo(map);
 
@@ -1700,19 +1678,13 @@ function createRouteEndpoint(
     marker.__routeEndpointLabel =
         label;
 
-    marker.__routeId =
-        routeId || null;
-
 
     marker.bindTooltip(
         label,
         {
             permanent: false,
-
             direction: 'top',
-
-            className:
-                'route-end-label'
+            className: 'route-end-label'
         }
     );
 
@@ -1728,7 +1700,7 @@ function createRouteEndpoint(
 
 
 // ========================================================
-// ШПИЛЬКИ РУЧНОГО МАРШРУТА
+// МАРКЕРЫ НАЧАЛА/КОНЦА РУЧНОГО МАРШРУТА
 // ========================================================
 
 function addRouteEndpoints(
@@ -1738,15 +1710,13 @@ function addRouteEndpoints(
 
     if (
         !latlngs
-        ||
-        latlngs.length < 2
+        || latlngs.length < 2
     )
         return [];
 
 
     var first =
         latlngs[0];
-
 
     var last =
         latlngs[
@@ -1758,8 +1728,7 @@ function addRouteEndpoints(
         createRouteEndpoint(
             first,
             'start',
-            'Початок маршруту',
-            routeId
+            'Початок маршруту'
         );
 
 
@@ -1767,9 +1736,15 @@ function addRouteEndpoints(
         createRouteEndpoint(
             last,
             'finish',
-            'Кінець маршруту',
-            routeId
+            'Кінець маршруту'
         );
+
+
+    start.__routeId =
+        routeId;
+
+    finish.__routeId =
+        routeId;
 
 
     return [
@@ -1787,14 +1762,12 @@ function captureMapObjects() {
 
     var objects = [];
 
-
     map.eachLayer(
         function(layer) {
 
             if (
                 !layer.__cbrnType
-                ||
-                layer.__rkhbPoint
+                || layer.__rkhbPoint
             )
                 return;
 
@@ -1803,58 +1776,45 @@ function captureMapObjects() {
                 layer.__cbrnType;
 
 
-            // =============================================
             // CIRCLE
-            // =============================================
 
             if (
                 type === 'circle'
-                &&
-                layer.getLatLng
-                &&
-                layer.getRadius
+                && layer.getLatLng
+                && layer.getRadius
             ) {
 
                 var c =
                     layer.getLatLng();
 
-
                 objects.push({
 
-                    type:
-                        'circle',
+                    type: 'circle',
 
-                    lat:
-                        c.lat,
+                    lat: c.lat,
 
-                    lng:
-                        c.lng,
+                    lng: c.lng,
 
                     radius:
                         layer.getRadius(),
 
                     color:
                         layer.options.color
-                        ||
-                        '#d97706',
+                        || '#d97706',
 
                     fillColor:
                         layer.options.fillColor
-                        ||
-                        '#FFD600',
+                        || '#FFD600',
 
                     fillOpacity:
                         layer.options.fillOpacity
                         !== undefined
-                        ?
-                        layer.options.fillOpacity
-                        :
-                        0.35,
+                        ? layer.options.fillOpacity
+                        : 0.35,
 
                     weight:
                         layer.options.weight
-                        ||
-                        4,
+                        || 4,
 
                     label:
                         getTooltipText(layer)
@@ -1864,18 +1824,14 @@ function captureMapObjects() {
             }
 
 
-            // =============================================
             // POLYGON / ROUTE
-            // =============================================
 
             else if (
                 (
                     type === 'polygon'
-                    ||
-                    type === 'route'
+                    || type === 'route'
                 )
-                &&
-                layer.getLatLngs
+                && layer.getLatLngs
             ) {
 
                 var pts =
@@ -1902,39 +1858,31 @@ function captureMapObjects() {
 
                 objects.push({
 
-                    type:
-                        type,
+                    type: type,
 
-                    points:
-                        pts,
+                    points: pts,
 
                     color:
                         layer.options.color
-                        ||
-                        '#d97706',
+                        || '#d97706',
 
                     fillColor:
                         layer.options.fillColor
-                        ||
-                        '#FFD600',
+                        || '#FFD600',
 
                     fillOpacity:
                         layer.options.fillOpacity
                         !== undefined
-                        ?
-                        layer.options.fillOpacity
-                        :
-                        0.35,
+                        ? layer.options.fillOpacity
+                        : 0.35,
 
                     weight:
                         layer.options.weight
-                        ||
-                        4,
+                        || 4,
 
                     dashArray:
                         layer.options.dashArray
-                        ||
-                        null,
+                        || null,
 
                     label:
                         getTooltipText(layer)
@@ -1944,38 +1892,31 @@ function captureMapObjects() {
             }
 
 
-            // =============================================
             // AUTO ROUTE
-            // =============================================
 
             else if (
                 type === 'autoRoute'
-                &&
-                layer.__cbrnPoints
+                && layer.__cbrnPoints
             ) {
 
                 objects.push({
 
-                    type:
-                        'autoRoute',
+                    type: 'autoRoute',
 
                     points:
                         layer.__cbrnPoints,
 
                     color:
                         layer.options.color
-                        ||
-                        '#d97706',
+                        || '#d97706',
 
                     weight:
                         layer.options.weight
-                        ||
-                        4,
+                        || 4,
 
                     dashArray:
                         layer.options.dashArray
-                        ||
-                        '8, 8',
+                        || '8, 8',
 
                     label:
                         getTooltipText(layer)
@@ -1985,90 +1926,70 @@ function captureMapObjects() {
             }
 
 
-            // =============================================
             // SIGN
-            // =============================================
 
             else if (
                 type === 'sign'
-                &&
-                layer.getLatLng
+                && layer.getLatLng
             ) {
 
                 var s =
                     layer.getLatLng();
 
-
                 objects.push({
 
-                    type:
-                        'sign',
+                    type: 'sign',
 
-                    lat:
-                        s.lat,
+                    lat: s.lat,
 
-                    lng:
-                        s.lng,
+                    lng: s.lng,
 
                     icon:
                         layer.__cbrnIcon
-                        ||
-                        '',
+                        || '',
 
-                    size:
-                        [
-                            32,
-                            32
-                        ]
+                    size: [
+                        32,
+                        32
+                    ]
 
                 });
 
             }
 
 
-            // =============================================
             // TEXT
-            // =============================================
 
             else if (
                 type === 'text'
-                &&
-                layer.getLatLng
+                && layer.getLatLng
             ) {
 
                 var t =
                     layer.getLatLng();
 
-
                 objects.push({
 
-                    type:
-                        'text',
+                    type: 'text',
 
-                    lat:
-                        t.lat,
+                    lat: t.lat,
 
-                    lng:
-                        t.lng,
+                    lng: t.lng,
 
                     text:
                         layer.__cbrnText
-                        ||
-                        ''
+                        || ''
 
                 });
 
             }
 
 
-            // =============================================
             // ROUTE ENDPOINT
-            // =============================================
 
             else if (
                 type === 'route_endpoint'
-                &&
-                layer.getLatLng
+                && layer.getLatLng
             ) {
 
                 var ep =
@@ -2088,18 +2009,11 @@ function captureMapObjects() {
 
                     endpointType:
                         layer.__routeEndpointType
-                        ||
-                        'start',
+                        || 'start',
 
                     label:
                         layer.__routeEndpointLabel
-                        ||
-                        '',
-
-                    routeId:
-                        layer.__routeId
-                        ||
-                        null
+                        || ''
 
                 });
 
@@ -2123,7 +2037,6 @@ function saveMapState() {
 
         var state =
             captureMapObjects();
-
 
         var encoded =
             JSON.stringify(state);
@@ -2202,8 +2115,7 @@ function attachRemovalClick(
 
                 if (
                     pointIndex !== undefined
-                    &&
-                    pointIndex !== null
+                    && pointIndex !== null
                 ) {
 
                     var url =
@@ -2260,10 +2172,6 @@ map.on(
             e.layer;
 
 
-        // ===============================================
-        // РУЧНОЙ МАРШРУТ
-        // ===============================================
-
         if (
             e.shape === 'Line'
         ) {
@@ -2274,16 +2182,6 @@ map.on(
 
             var latlngs =
                 layer.getLatLngs();
-
-
-            var routeId =
-                "manual_"
-                +
-                Date.now();
-
-
-            layer.__routeId =
-                routeId;
 
 
             var totalDist = 0;
@@ -2323,14 +2221,11 @@ map.on(
 
             layer.setStyle({
 
-                color:
-                    '#d97706',
+                color: '#d97706',
 
-                weight:
-                    4,
+                weight: 4,
 
-                dashArray:
-                    '8, 8'
+                dashArray: '8, 8'
 
             });
 
@@ -2338,33 +2233,27 @@ map.on(
             layer.bindTooltip(
                 labelTxt,
                 {
+                    permanent: true,
 
-                    permanent:
-                        true,
-
-                    direction:
-                        'center',
+                    direction: 'center',
 
                     className:
                         'route-label'
-
                 }
             );
 
 
-            // ШПИЛЬКИ НАЧАЛА И КОНЦА
+            // ==========================================
+            // ГЛАВНОЕ — МАРКЕРЫ НАЧАЛА И КОНЦА
+            // ==========================================
 
             addRouteEndpoints(
                 latlngs,
-                routeId
+                "manual_" + Date.now()
             );
 
         }
 
-
-        // ===============================================
-        // CIRCLE
-        // ===============================================
 
         if (
             e.shape === 'Circle'
@@ -2380,37 +2269,25 @@ map.on(
 
             var rTxt =
                 radius >= 1000
-                ?
-                (
+                ? (
                     radius / 1000
-                ).toFixed(2)
-                +
-                ' км'
-                :
-                Math.round(radius)
-                +
-                ' м';
+                ).toFixed(2) + ' км'
+                : Math.round(radius) + ' м';
 
 
             layer.__cbrnLabel =
-                "Радіус: "
-                +
-                rTxt;
+                "Радіус: " + rTxt;
 
 
             layer.bindTooltip(
                 layer.__cbrnLabel,
                 {
+                    permanent: true,
 
-                    permanent:
-                        true,
-
-                    direction:
-                        'center',
+                    direction: 'center',
 
                     className:
                         'route-label'
-
                 }
             );
 
@@ -2425,33 +2302,22 @@ map.on(
 
                     var newTxt =
                         newR >= 1000
-                        ?
-                        (
+                        ? (
                             newR / 1000
                         ).toFixed(2)
-                        +
-                        ' км'
-                        :
-                        Math.round(newR)
-                        +
-                        ' м';
+                        + ' км'
+                        : Math.round(newR)
+                        + ' м';
 
 
                     ev.layer.__cbrnLabel =
                         "Радіус: "
-                        +
-                        newTxt;
+                        + newTxt;
 
 
-                    if (
-                        ev.layer.getTooltip()
-                    ) {
-
-                        ev.layer.setTooltipContent(
-                            ev.layer.__cbrnLabel
-                        );
-
-                    }
+                    ev.layer.setTooltipContent(
+                        ev.layer.__cbrnLabel
+                    );
 
 
                     saveMapState();
@@ -2461,7 +2327,6 @@ map.on(
 
         }
 
-
         else if (
             e.shape === 'Polygon'
         ) {
@@ -2470,7 +2335,6 @@ map.on(
                 'polygon';
 
         }
-
 
         else if (
             e.shape === 'Rectangle'
@@ -2511,8 +2375,7 @@ if (
 
             var dateStr =
                 pt.date
-                ||
-                "Базові дані";
+                || "Базові дані";
 
 
             if (
@@ -2526,9 +2389,7 @@ if (
 
                 layerControl.addOverlay(
                     dateLayers[dateStr],
-                    "📅 "
-                    +
-                    dateStr
+                    "📅 " + dateStr
                 );
 
             }
@@ -2546,17 +2407,15 @@ if (
                         iconUrl:
                             pt.icon,
 
-                        iconSize:
-                            [
-                                32,
-                                32
-                            ],
+                        iconSize: [
+                            32,
+                            32
+                        ],
 
-                        iconAnchor:
-                            [
-                                16,
-                                16
-                            ]
+                        iconAnchor: [
+                            16,
+                            16
+                        ]
 
                     });
 
@@ -2601,22 +2460,17 @@ if (
                 marker.bindTooltip(
                     labelHtml,
                     {
+                        permanent: true,
 
-                        permanent:
-                            true,
+                        direction: 'bottom',
 
-                        direction:
-                            'bottom',
-
-                        offset:
-                            [
-                                0,
-                                16
-                            ],
+                        offset: [
+                            0,
+                            16
+                        ],
 
                         className:
                             'leaflet-div-icon'
-
                     }
                 );
 
@@ -2698,13 +2552,10 @@ document.getElementById(
 
                 if (
                     layer !== osmLayer
-                    &&
-                    layer !== satLayer
+                    && layer !== satLayer
                 ) {
 
-                    map.removeLayer(
-                        layer
-                    );
+                    map.removeLayer(layer);
 
                 }
 
@@ -2825,9 +2676,7 @@ async function geocodePlaceJS(query) {
         ?
         query
         :
-        query
-        +
-        ", Україна";
+        query + ", Україна";
 
 
     try {
@@ -2843,9 +2692,7 @@ async function geocodePlaceJS(query) {
 
 
         var resP =
-            await fetch(
-                pUrl
-            );
+            await fetch(pUrl);
 
 
         var dataP =
@@ -2861,8 +2708,7 @@ async function geocodePlaceJS(query) {
         ) {
 
             var coordsP =
-                dataP
-                    .features[0]
+                dataP.features[0]
                     .geometry
                     .coordinates;
 
@@ -2953,6 +2799,7 @@ document.getElementById(
     'buildAutoRouteBtn'
 ).onclick = async function() {
 
+
     var inputVal =
         document
             .getElementById(
@@ -2977,12 +2824,10 @@ document.getElementById(
         inputVal
             .split(';')
             .map(
-                p =>
-                    p.trim()
+                p => p.trim()
             )
             .filter(
-                p =>
-                    p.length > 0
+                p => p.length > 0
             );
 
 
@@ -2991,7 +2836,7 @@ document.getElementById(
     ) {
 
         alert(
-            "Введіть як мінімум 2 населених пункти"
+            "Введіть як мінімум 2 населені пункти"
         );
 
         return;
@@ -3106,16 +2951,14 @@ document.getElementById(
             var distKm =
                 (
                     routeData.distance
-                    /
-                    1000
+                    / 1000
                 ).toFixed(2);
 
 
             var durMin =
                 Math.round(
                     routeData.duration
-                    /
-                    60
+                    / 60
                 );
 
 
@@ -3138,8 +2981,7 @@ document.getElementById(
 
 
             var routePoints =
-                routeData
-                    .geometry
+                routeData.geometry
                     .coordinates
                     .map(
                         function(c) {
@@ -3184,29 +3026,15 @@ document.getElementById(
                 routePoints;
 
 
-            var autoRouteId =
-                "auto_"
-                +
-                Date.now();
-
-
-            rLayer.__routeId =
-                autoRouteId;
-
-
             rLayer.bindTooltip(
                 labelName,
                 {
+                    permanent: true,
 
-                    permanent:
-                        true,
-
-                    direction:
-                        'center',
+                    direction: 'center',
 
                     className:
                         'route-label'
-
                 }
             );
 
@@ -3218,7 +3046,7 @@ document.getElementById(
 
 
             // ==========================================
-            // ЗЕЛЕНАЯ ШПИЛЬКА - НАЧАЛО
+            // МАРКЕР НАЧАЛА
             // ==========================================
 
             createRouteEndpoint(
@@ -3226,13 +3054,12 @@ document.getElementById(
                 'start',
                 "Початок маршруту: "
                 +
-                pointsList[0],
-                autoRouteId
+                pointsList[0]
             );
 
 
             // ==========================================
-            // КРАСНАЯ ШПИЛЬКА - КОНЕЦ
+            // МАРКЕР КОНЦА
             // ==========================================
 
             createRouteEndpoint(
@@ -3244,8 +3071,7 @@ document.getElementById(
                 +
                 pointsList[
                     pointsList.length - 1
-                ],
-                autoRouteId
+                ]
             );
 
 
@@ -3253,7 +3079,7 @@ document.getElementById(
                 rLayer.getBounds(),
                 {
                     padding:
-                        [30, 30]
+                        [30,30]
                 }
             );
 
@@ -3406,14 +3232,11 @@ document.getElementById(
         activeIcon = "";
 
 
-    textMode =
-        false;
+    textMode = false;
 
-    ellipseMode =
-        false;
+    ellipseMode = false;
 
-    isReconMode =
-        false;
+    isReconMode = false;
 
 };
 
@@ -3428,15 +3251,13 @@ document.getElementById(
 
     clearModes();
 
-    isReconMode =
-        true;
+    isReconMode = true;
 
 
     map.pm.enableDraw(
         'Line',
         {
-            snappable:
-                true,
+            snappable: true,
 
             pathOptions:
                 {
@@ -3465,8 +3286,7 @@ document.getElementById(
 
     clearModes();
 
-    textMode =
-        true;
+    textMode = true;
 
 };
 
@@ -3481,8 +3301,7 @@ document.getElementById(
 
     clearModes();
 
-    ellipseMode =
-        true;
+    ellipseMode = true;
 
 };
 
@@ -3538,8 +3357,7 @@ document.getElementById(
                 'windInput'
             ).value
         )
-        ||
-        0;
+        || 0;
 
 
     var windSpeed =
@@ -3548,8 +3366,7 @@ document.getElementById(
                 'windSpeedInput'
             ).value
         )
-        ||
-        0;
+        || 0;
 
 
     var blowToDeg =
@@ -3596,6 +3413,10 @@ document.getElementById(
 
     try {
 
+        var mapObjects =
+            captureMapObjects();
+
+
         var exportData = {
 
             title:
@@ -3607,19 +3428,13 @@ document.getElementById(
                 ),
 
             center:
-                {
-                    lat:
-                        map.getCenter().lat,
-
-                    lng:
-                        map.getCenter().lng
-                },
+                map.getCenter(),
 
             zoom:
                 map.getZoom(),
 
             objects:
-                captureMapObjects(),
+                mapObjects,
 
             points:
                 DATA_FROM_PYTHON
@@ -3627,266 +3442,49 @@ document.getElementById(
         };
 
 
-        var jsonData =
+        var exportJson =
             JSON.stringify(
                 exportData
-            )
-            .replace(
-                /</g,
-                '\\u003c'
             );
 
 
         var html = `<!DOCTYPE html>
-<html lang="uk">
-
+<html>
 <head>
 
 <meta charset="UTF-8">
 
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
-
 <title>Карта фактичної РХБ обстановки</title>
-
-<link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <style>
 
-html,
 body {
-
-    margin: 0;
-    padding: 0;
-
-    width: 100%;
-    height: 100%;
-
-    font-family: Arial, sans-serif;
-
-    overflow: hidden;
+    margin:0;
+    font-family:Arial,sans-serif;
+    background:#fff;
 }
 
-
-#map {
-
-    width: 100%;
-    height: 100%;
+.header {
+    padding:12px;
+    font-size:22px;
+    font-weight:bold;
+    border-bottom:1px solid #ccc;
 }
 
-
-.leaflet-div-icon {
-
-    background:
-        transparent !important;
-
-    border:
-        none !important;
-
-    box-shadow:
-        none !important;
+.info {
+    padding:8px 12px;
+    color:#555;
+    font-size:13px;
 }
 
-
-.cbrn-military-lbl {
-
-    font-family:
-        Arial, sans-serif;
-
-    font-size:
-        12px;
-
-    font-weight:
-        bold;
-
-    color:
-        #000;
-
-    text-align:
-        center;
-
-    display:
-        inline-block;
-
-    white-space:
-        nowrap;
-
-    line-height:
-        1.3;
-}
-
-
-.cbrn-line-divider {
-
-    border-bottom:
-        2px solid #000;
-
-    width:
-        100%;
-
-    margin:
-        2px 0;
-}
-
-
-.cbrn-date-sub {
-
-    font-size:
-        11px;
-
-    font-weight:
-        bold;
-
-    color:
-        #000;
-
-    display:
-        block;
-}
-
-
-.route-label {
-
-    background:
-        rgba(0,0,0,0.85) !important;
-
-    border:
-        1px solid #d97706 !important;
-
-    color:
-        white !important;
-
-    font-size:
-        11px !important;
-
-    font-weight:
-        bold !important;
-
-    padding:
-        2px 6px !important;
-
-    border-radius:
-        4px !important;
-
-    white-space:
-        nowrap !important;
-}
-
-
-.route-pin {
-
-    position:
-        relative;
-
-    width:
-        18px;
-
-    height:
-        30px;
-}
-
-
-.route-pin::before {
-
-    content:
-        "";
-
-    position:
-        absolute;
-
-    left:
-        8px;
-
-    top:
-        9px;
-
-    width:
-        2px;
-
-    height:
-        19px;
-
-    background:
-        #222;
-
-    border-radius:
-        1px;
-}
-
-
-.route-pin::after {
-
-    content:
-        "";
-
-    position:
-        absolute;
-
-    left:
-        3px;
-
-    top:
-        0;
-
-    width:
-        12px;
-
-    height:
-        12px;
-
-    border-radius:
-        50%;
-
-    border:
-        2px solid white;
-
-    box-shadow:
-        0 0 0 1px #222,
-        0 2px 5px rgba(0,0,0,0.45);
-}
-
-
-.route-pin-start::after {
-
-    background:
-        #00a000;
-}
-
-
-.route-pin-finish::after {
-
-    background:
-        #d00000;
-}
-
-
-.route-end-label {
-
-    background:
-        rgba(0,0,0,0.85);
-
-    color:
-        white;
-
-    border:
-        1px solid #555;
-
-    padding:
-        2px 5px;
-
-    border-radius:
-        3px;
-
-    font-size:
-        10px;
-
-    font-weight:
-        bold;
+pre {
+    white-space:pre-wrap;
+    word-break:break-word;
+    margin:12px;
+    padding:12px;
+    background:#f3f3f3;
+    border:1px solid #ddd;
+    border-radius:6px;
 }
 
 </style>
@@ -3895,552 +3493,25 @@ body {
 
 <body>
 
-<div id="map"></div>
-
-<script>
-
-const EXPORT_DATA =
-${jsonData};
-
-
-/* =========================================
-   КАРТА
-   ========================================= */
-
-var map =
-    L.map('map')
-    .setView(
-        [
-            EXPORT_DATA.center.lat,
-            EXPORT_DATA.center.lng
-        ],
-        EXPORT_DATA.zoom
-    );
-
-
-var osm =
-    L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        {
-            maxZoom:
-                19,
-
-            attribution:
-                '© OpenStreetMap'
-        }
-    ).addTo(map);
-
-
-/* =========================================
-   ШПИЛЬКА
-   ========================================= */
-
-function createExportEndpoint(
-    lat,
-    lng,
-    type,
-    label
-) {
-
-    var isStart =
-        type === 'start';
-
-
-    var icon =
-        L.divIcon({
-
-            className:
-                '',
-
-            html:
-                '<div class="route-pin '
-                +
-                (
-                    isStart
-                    ?
-                    'route-pin-start'
-                    :
-                    'route-pin-finish'
-                )
-                +
-                '"></div>',
-
-            iconSize:
-                [
-                    18,
-                    30
-                ],
-
-            iconAnchor:
-                [
-                    9,
-                    30
-                ]
-
-        });
-
-
-    var marker =
-        L.marker(
-            [
-                lat,
-                lng
-            ],
-            {
-                icon:
-                    icon
-            }
-        ).addTo(map);
-
-
-    if (label) {
-
-        marker.bindTooltip(
-            label,
-            {
-                direction:
-                    'top',
-
-                className:
-                    'route-end-label'
-            }
-        );
-
-    }
-
-}
-
-
-/* =========================================
-   ТОЧКИ ИЗМЕРЕНИЙ
-   ========================================= */
-
-if (
-    Array.isArray(
-        EXPORT_DATA.points
-    )
-) {
-
-    EXPORT_DATA.points.forEach(
-        function(pt) {
-
-            if (
-                typeof pt.lat !== 'number'
-                ||
-                typeof pt.lng !== 'number'
-            ) {
-                return;
-            }
-
-
-            var icon =
-                L.icon({
-
-                    iconUrl:
-                        pt.icon,
-
-                    iconSize:
-                        [
-                            32,
-                            32
-                        ],
-
-                    iconAnchor:
-                        [
-                            16,
-                            16
-                        ]
-
-                });
-
-
-            var marker =
-                L.marker(
-                    [
-                        pt.lat,
-                        pt.lng
-                    ],
-                    {
-                        icon:
-                            icon
-                    }
-                ).addTo(map);
-
-
-            var dateStr =
-                pt.date
-                ||
-                '';
-
-
-            var html =
-                "<div class='cbrn-military-lbl'>"
-                +
-                "<span>"
-                +
-                pt.label
-                +
-                "</span>"
-                +
-                "<div class='cbrn-line-divider'></div>"
-                +
-                "<span class='cbrn-date-sub'>"
-                +
-                dateStr
-                +
-                "</span>"
-                +
-                "</div>";
-
-
-            marker.bindTooltip(
-                html,
-                {
-
-                    permanent:
-                        true,
-
-                    direction:
-                        'bottom',
-
-                    offset:
-                        [
-                            0,
-                            16
-                        ],
-
-                    className:
-                        'leaflet-div-icon'
-
-                }
-            );
-
-        }
-    );
-
-}
-
-
-/* =========================================
-   ОБЪЕКТЫ ОБСТАНОВКИ
-   ========================================= */
-
-if (
-    Array.isArray(
-        EXPORT_DATA.objects
-    )
-) {
-
-    EXPORT_DATA.objects.forEach(
-        function(obj) {
-
-            try {
-
-
-                /* =========================
-                   CIRCLE
-                   ========================= */
-
-                if (
-                    obj.type === 'circle'
-                ) {
-
-                    var c =
-                        L.circle(
-                            [
-                                obj.lat,
-                                obj.lng
-                            ],
-                            {
-
-                                radius:
-                                    obj.radius,
-
-                                color:
-                                    obj.color
-                                    ||
-                                    '#d97706',
-
-                                fillColor:
-                                    obj.fillColor
-                                    ||
-                                    '#FFD600',
-
-                                fillOpacity:
-                                    obj.fillOpacity
-                                    !== undefined
-                                    ?
-                                    obj.fillOpacity
-                                    :
-                                    0.35,
-
-                                weight:
-                                    obj.weight
-                                    ||
-                                    4
-
-                            }
-                        ).addTo(map);
-
-
-                    if (
-                        obj.label
-                    ) {
-
-                        c.bindTooltip(
-                            obj.label,
-                            {
-                                direction:
-                                    'center'
-                            }
-                        );
-
-                    }
-
-                }
-
-
-                /* =========================
-                   POLYGON
-                   ========================= */
-
-                else if (
-                    obj.type === 'polygon'
-                ) {
-
-                    var p =
-                        L.polygon(
-                            obj.points
-                            ||
-                            [],
-                            {
-
-                                color:
-                                    obj.color
-                                    ||
-                                    'black',
-
-                                weight:
-                                    obj.weight
-                                    ||
-                                    1,
-
-                                fillColor:
-                                    obj.fillColor
-                                    ||
-                                    '#FFD600',
-
-                                fillOpacity:
-                                    obj.fillOpacity
-                                    !== undefined
-                                    ?
-                                    obj.fillOpacity
-                                    :
-                                    0.35
-
-                            }
-                        ).addTo(map);
-
-
-                    if (
-                        obj.label
-                    ) {
-
-                        p.bindTooltip(
-                            obj.label,
-                            {
-                                direction:
-                                    'center'
-                            }
-                        );
-
-                    }
-
-                }
-
-
-                /* =========================
-                   ROUTE
-                   ========================= */
-
-                else if (
-                    obj.type === 'route'
-                    ||
-                    obj.type === 'autoRoute'
-                ) {
-
-                    var r =
-                        L.polyline(
-                            obj.points
-                            ||
-                            [],
-                            {
-
-                                color:
-                                    obj.color
-                                    ||
-                                    '#d97706',
-
-                                weight:
-                                    obj.weight
-                                    ||
-                                    4,
-
-                                dashArray:
-                                    obj.dashArray
-                                    ||
-                                    '8,8'
-
-                            }
-                        ).addTo(map);
-
-
-                    if (
-                        obj.label
-                    ) {
-
-                        r.bindTooltip(
-                            obj.label,
-                            {
-
-                                permanent:
-                                    true,
-
-                                direction:
-                                    'center',
-
-                                className:
-                                    'route-label'
-
-                            }
-                        );
-
-                    }
-
-                }
-
-
-                /* =========================
-                   SIGN
-                   ========================= */
-
-                else if (
-                    obj.type === 'sign'
-                ) {
-
-                    L.marker(
-                        [
-                            obj.lat,
-                            obj.lng
-                        ],
-                        {
-
-                            icon:
-                                L.icon(
-                                    {
-
-                                        iconUrl:
-                                            obj.icon,
-
-                                        iconSize:
-                                            obj.size
-                                            ||
-                                            [
-                                                32,
-                                                32
-                                            ],
-
-                                        iconAnchor:
-                                            [
-                                                16,
-                                                16
-                                            ]
-
-                                    }
-                                )
-
-                        }
-                    ).addTo(map);
-
-                }
-
-
-                /* =========================
-                   TEXT
-                   ========================= */
-
-                else if (
-                    obj.type === 'text'
-                ) {
-
-                    L.marker(
-                        [
-                            obj.lat,
-                            obj.lng
-                        ],
-                        {
-
-                            icon:
-                                L.divIcon(
-                                    {
-
-                                        className:
-                                            'leaflet-div-icon',
-
-                                        html:
-                                            "<span class='cbrn-military-lbl'>"
-                                            +
-                                            obj.text
-                                            +
-                                            "</span>"
-
-                                    }
-                                )
-
-                        }
-                    ).addTo(map);
-
-                }
-
-
-                /* =========================
-                   ROUTE ENDPOINT
-                   ========================= */
-
-                else if (
-                    obj.type ===
-                    'route_endpoint'
-                ) {
-
-                    createExportEndpoint(
-                        obj.lat,
-                        obj.lng,
-                        obj.endpointType,
-                        obj.label
-                    );
-
-                }
-
-            }
-
-            catch(err) {
-
-                console.warn(
-                    "Не вдалося відновити об'єкт:",
-                    err
-                );
-
-            }
-
-        }
-    );
-
-}
-
-</script>
+<div class="header">
+КАРТА ФАКТИЧНОЇ РХБ ОБСТАНОВКИ
+</div>
+
+<div class="info">
+Експорт оперативної обстановки.
+Дата формування:
+${new Date().toLocaleString('uk-UA')}
+</div>
+
+<pre>${escapeHtml(
+            JSON.stringify(
+                exportData,
+                null,
+                2
+            )
+        )}</pre>
 
 </body>
-
 </html>`;
 
 
@@ -4466,8 +3537,7 @@ if (
             );
 
 
-        a.href =
-            url;
+        a.href = url;
 
 
         a.download =
@@ -4475,10 +3545,7 @@ if (
             +
             new Date()
                 .toISOString()
-                .slice(
-                    0,
-                    19
-                )
+                .slice(0,19)
                 .replace(
                     /:/g,
                     '-'
@@ -4487,29 +3554,14 @@ if (
             '.html';
 
 
-        document.body.appendChild(
-            a
-        );
-
+        document.body.appendChild(a);
 
         a.click();
 
-
-        document.body.removeChild(
-            a
-        );
+        document.body.removeChild(a);
 
 
-        setTimeout(
-            function() {
-
-                URL.revokeObjectURL(
-                    url
-                );
-
-            },
-            1000
-        );
+        URL.revokeObjectURL(url);
 
     }
 
@@ -4524,6 +3576,33 @@ if (
     }
 
 };
+
+
+function escapeHtml(text) {
+
+    return text
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+
+}
 
 
 // ========================================================
@@ -4549,7 +3628,6 @@ map.on(
 
         var lat =
             e.latlng.lat;
-
 
         var lng =
             e.latlng.lng;
@@ -4658,11 +3736,9 @@ map.on(
                 L.marker(
                     e.latlng,
                     {
-
                         icon:
                             L.icon(
                                 {
-
                                     iconUrl:
                                         activeIcon,
 
@@ -4677,10 +3753,8 @@ map.on(
                                             16,
                                             16
                                         ]
-
                                 }
                             )
-
                     }
                 ).addTo(map);
 
@@ -4722,11 +3796,9 @@ map.on(
                     L.marker(
                         e.latlng,
                         {
-
                             icon:
                                 L.divIcon(
                                     {
-
                                         className:
                                             'leaflet-div-icon',
 
@@ -4736,10 +3808,8 @@ map.on(
                                             txt
                                             +
                                             "</span>"
-
                                     }
                                 )
-
                         }
                     ).addTo(map);
 
@@ -4802,22 +3872,24 @@ map.on(
 
             var windFromDeg =
                 parseFloat(
-                    document.getElementById(
-                        'windInput'
-                    ).value
+                    document
+                        .getElementById(
+                            'windInput'
+                        )
+                        .value
                 )
-                ||
-                0;
+                || 0;
 
 
             var windSpeed =
                 parseFloat(
-                    document.getElementById(
-                        'windSpeedInput'
-                    ).value
+                    document
+                        .getElementById(
+                            'windSpeedInput'
+                        )
+                        .value
                 )
-                ||
-                0;
+                || 0;
 
 
             var widthFactor =
@@ -4828,8 +3900,7 @@ map.on(
                 windSpeed <= 1.5
             ) {
 
-                widthFactor =
-                    0.40;
+                widthFactor = 0.40;
 
             }
 
@@ -4837,23 +3908,19 @@ map.on(
                 windSpeed <= 4.0
             ) {
 
-                widthFactor =
-                    0.25;
+                widthFactor = 0.25;
 
             }
 
             else {
 
-                widthFactor =
-                    0.15;
+                widthFactor = 0.15;
 
             }
 
 
             var rY =
-                rX
-                *
-                widthFactor;
+                rX * widthFactor;
 
 
             var groupId =
@@ -4865,7 +3932,6 @@ map.on(
             var shapes = [
 
                 {
-
                     radiusX:
                         rX,
 
@@ -4883,20 +3949,14 @@ map.on(
 
                     groupId:
                         groupId
-
                 },
 
                 {
-
                     radiusX:
-                        rX
-                        *
-                        0.6,
+                        rX * 0.6,
 
                     radiusY:
-                        rY
-                        *
-                        0.6,
+                        rY * 0.6,
 
                     level:
                         "AEGL-2",
@@ -4909,20 +3969,14 @@ map.on(
 
                     groupId:
                         groupId
-
                 },
 
                 {
-
                     radiusX:
-                        rX
-                        *
-                        0.3,
+                        rX * 0.3,
 
                     radiusY:
-                        rY
-                        *
-                        0.3,
+                        rY * 0.3,
 
                     level:
                         "AEGL-3",
@@ -4935,7 +3989,6 @@ map.on(
 
                     groupId:
                         groupId
-
                 }
 
             ];
@@ -4974,8 +4027,7 @@ function renderAeglGroup(
         function(a,b) {
 
             return b.radiusX
-                -
-                a.radiusX;
+                - a.radiusX;
 
         }
     );
@@ -4984,9 +4036,7 @@ function renderAeglGroup(
     var blowToDeg =
         (
             windFromDeg + 180
-        )
-        %
-        360;
+        ) % 360;
 
 
     var blowToRad =
@@ -5139,9 +4189,7 @@ function renderAeglGroup(
                 "Довжина зони: "
                 +
                 Math.round(
-                    s.radiusX
-                    *
-                    2
+                    s.radiusX * 2
                 )
                 +
                 " м<br>"
@@ -5149,9 +4197,7 @@ function renderAeglGroup(
                 "Ширина: "
                 +
                 Math.round(
-                    s.radiusY
-                    *
-                    2
+                    s.radiusY * 2
                 )
                 +
                 " м<br>"
@@ -5178,13 +4224,9 @@ function renderAeglGroup(
             poly.bindTooltip(
                 infoTxt,
                 {
+                    permanent: false,
 
-                    permanent:
-                        false,
-
-                    direction:
-                        'center'
-
+                    direction: 'center'
                 }
             );
 
@@ -5222,7 +4264,6 @@ function restoreMapObjects(
 
             try {
 
-
                 // ========================================
                 // CIRCLE
                 // ========================================
@@ -5244,13 +4285,11 @@ function restoreMapObjects(
 
                                 color:
                                     obj.color
-                                    ||
-                                    '#d97706',
+                                    || '#d97706',
 
                                 fillColor:
                                     obj.fillColor
-                                    ||
-                                    '#FFD600',
+                                    || '#FFD600',
 
                                 fillOpacity:
                                     obj.fillOpacity
@@ -5262,8 +4301,7 @@ function restoreMapObjects(
 
                                 weight:
                                     obj.weight
-                                    ||
-                                    4
+                                    || 4
 
                             }
                         ).addTo(map);
@@ -5275,8 +4313,7 @@ function restoreMapObjects(
 
                     cLayer.__cbrnLabel =
                         obj.label
-                        ||
-                        '';
+                        || '';
 
 
                     if (
@@ -5286,7 +4323,6 @@ function restoreMapObjects(
                         cLayer.bindTooltip(
                             cLayer.__cbrnLabel,
                             {
-
                                 permanent:
                                     true,
 
@@ -5295,54 +4331,10 @@ function restoreMapObjects(
 
                                 className:
                                     'route-label'
-
                             }
                         );
 
                     }
-
-
-                    cLayer.on(
-                        'pm:change',
-                        function(ev) {
-
-                            var newR =
-                                ev.layer.getRadius();
-
-
-                            ev.layer.__cbrnLabel =
-                                newR >= 1000
-                                ?
-                                'Радіус: '
-                                +
-                                (
-                                    newR / 1000
-                                ).toFixed(2)
-                                +
-                                ' км'
-                                :
-                                'Радіус: '
-                                +
-                                Math.round(newR)
-                                +
-                                ' м';
-
-
-                            if (
-                                ev.layer.getTooltip()
-                            ) {
-
-                                ev.layer.setTooltipContent(
-                                    ev.layer.__cbrnLabel
-                                );
-
-                            }
-
-
-                            saveMapState();
-
-                        }
-                    );
 
 
                     attachRemovalClick(
@@ -5364,24 +4356,20 @@ function restoreMapObjects(
                     var pLayer =
                         L.polygon(
                             obj.points
-                            ||
-                            [],
+                            || [],
                             {
 
                                 color:
                                     obj.color
-                                    ||
-                                    'black',
+                                    || 'black',
 
                                 weight:
                                     obj.weight
-                                    ||
-                                    1,
+                                    || 1,
 
                                 fillColor:
                                     obj.fillColor
-                                    ||
-                                    '#FFD600',
+                                    || '#FFD600',
 
                                 fillOpacity:
                                     obj.fillOpacity
@@ -5401,8 +4389,7 @@ function restoreMapObjects(
 
                     pLayer.__cbrnLabel =
                         obj.label
-                        ||
-                        '';
+                        || '';
 
 
                     if (
@@ -5412,13 +4399,11 @@ function restoreMapObjects(
                         pLayer.bindTooltip(
                             pLayer.__cbrnLabel,
                             {
-
                                 permanent:
                                     false,
 
                                 direction:
                                     'center'
-
                             }
                         );
 
@@ -5446,24 +4431,20 @@ function restoreMapObjects(
                     var rRestored =
                         L.polyline(
                             obj.points
-                            ||
-                            [],
+                            || [],
                             {
 
                                 color:
                                     obj.color
-                                    ||
-                                    '#d97706',
+                                    || '#d97706',
 
                                 weight:
                                     obj.weight
-                                    ||
-                                    4,
+                                    || 4,
 
                                 dashArray:
                                     obj.dashArray
-                                    ||
-                                    '8,8'
+                                    || '8, 8'
 
                             }
                         ).addTo(map);
@@ -5475,14 +4456,7 @@ function restoreMapObjects(
 
                     rRestored.__cbrnLabel =
                         obj.label
-                        ||
-                        '';
-
-
-                    rRestored.__routeId =
-                        obj.routeId
-                        ||
-                        null;
+                        || '';
 
 
                     if (
@@ -5492,7 +4466,6 @@ function restoreMapObjects(
                         rRestored.bindTooltip(
                             rRestored.__cbrnLabel,
                             {
-
                                 permanent:
                                     true,
 
@@ -5501,7 +4474,6 @@ function restoreMapObjects(
 
                                 className:
                                     'route-label'
-
                             }
                         );
 
@@ -5541,8 +4513,7 @@ function restoreMapObjects(
 
                                             iconSize:
                                                 obj.size
-                                                ||
-                                                [
+                                                || [
                                                     32,
                                                     32
                                                 ],
@@ -5566,8 +4537,7 @@ function restoreMapObjects(
 
                     sRestored.__cbrnIcon =
                         obj.icon
-                        ||
-                        '';
+                        || '';
 
 
                     attachRemovalClick(
@@ -5621,8 +4591,7 @@ function restoreMapObjects(
 
                     tRestored.__cbrnText =
                         obj.text
-                        ||
-                        '';
+                        || '';
 
 
                     attachRemovalClick(
@@ -5634,7 +4603,7 @@ function restoreMapObjects(
 
 
                 // ========================================
-                // ШПИЛЬКА НАЧАЛА / КОНЦА
+                // МАРКЕР НАЧАЛА / КОНЦА
                 // ========================================
 
                 else if (
@@ -5650,31 +4619,23 @@ function restoreMapObjects(
                             ],
 
                             obj.endpointType
-                            ||
-                            'start',
+                            || 'start',
 
                             obj.label
-                            ||
-                            (
+                            || (
                                 obj.endpointType
-                                ===
-                                'start'
+                                === 'start'
                                 ?
                                 'Початок маршруту'
                                 :
                                 'Кінець маршруту'
-                            ),
-
-                            obj.routeId
-                            ||
-                            null
+                            )
                         );
 
 
                     endpoint.__routeId =
                         obj.routeId
-                        ||
-                        null;
+                        || null;
 
                 }
 
