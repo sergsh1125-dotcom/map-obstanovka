@@ -68,7 +68,7 @@ GITHUB_USER = "sergsh1125-dotcom"
 GITHUB_REPO = "map-obstanovka"
 GITHUB_BRANCH = "main"
 
-GITHUB_BASE_URL = f"https://cdn.jsdelivr.net/gh/{GITHUB_USER}/{GITHUB_REPO}@{GITHUB_BRANCH}/assets/svg"
+GITHUB_BASE_URL = f"https://raw.githubusercontent.com/{GITHUB_USER}/{GITHUB_REPO}/{GITHUB_BRANCH}/assets/svg"
 
 
 def get_gh_svg_url(filename):
