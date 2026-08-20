@@ -174,7 +174,7 @@ if "clear_all" in st.query_params:
 
 
 # ============================================================
-# УДАЛЕННЯ ТОЧКИ РОЗВІДКИ
+# ВИДАЛЕННЯ ТОЧКИ РОЗВІДКИ
 # ============================================================
 
 if "delete_point_idx" in st.query_params:
@@ -527,9 +527,6 @@ html_map_template = """<!DOCTYPE html>
 
 <meta charset="UTF-8">
 
-<!-- Запобігає відкриттю посилань у батьківському вікні -->
-<base target="_top">
-
 <title>Map Module CBRN</title>
 
 <link
@@ -555,237 +552,139 @@ src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.0/dist/leaflet-geoman
 
 html,
 body {
-
     margin: 0;
     padding: 0;
     height: 100%;
-
     font-family: Arial, sans-serif;
-
     background: #fff;
-
     overflow: hidden;
 }
-
 
 #mapContainer {
-
     width: 100%;
     height: 550px;
-
     position: relative;
-
     border: 1px solid #ccc;
-
     border-radius: 8px;
-
     overflow: hidden;
 }
 
-
 #map {
-
     width: 100%;
     height: 100%;
 }
 
-
 #bottomControlsPanel {
-
     margin-top: 6px;
-
     background: #f9f9f9;
-
     padding: 8px 10px;
-
     border-radius: 8px;
-
     border: 1px solid #ddd;
-
-    box-shadow:
-        0 2px 5px rgba(0,0,0,0.1);
-
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     box-sizing: border-box;
 }
 
-
 .controls-row {
-
     display: flex;
-
     gap: 8px;
-
     align-items: center;
-
     margin-bottom: 6px;
-
     flex-wrap: wrap;
 }
 
-
 .controls-row:last-child {
-
     margin-bottom: 0;
 }
 
-
 .controls-row select,
 .controls-row input {
-
     padding: 5px 8px;
-
     background: #fff;
-
     color: #000;
-
     border: 1px solid #ccc;
-
     border-radius: 4px;
-
     font-size: 13px;
 }
 
-
 .controls-row label {
-
     font-size: 13px;
-
     font-weight: bold;
-
     color: #333;
 }
 
-
 .panel-btn {
-
     padding: 5px 10px;
-
     background: #e0e0e0;
-
     color: #000;
-
     border: 1px solid #adadad;
-
     border-radius: 4px;
-
     font-weight: bold;
-
     cursor: pointer;
-
     font-size: 13px;
-
     display: inline-flex;
-
     align-items: center;
-
     gap: 5px;
 }
 
-
 .panel-btn:hover {
-
     background: #d4d4d4;
 }
 
-
 .btn-stop {
-
     background: #ffebee !important;
-
     color: #c62828 !important;
-
     border-color: #ef9a9a !important;
 }
 
-
 .btn-stop:hover {
-
     background: #ffcdd2 !important;
 }
 
-
 .btn-clear-all {
-
     background: #b71c1c !important;
-
     color: #ffffff !important;
-
     border-color: #880e4f !important;
-
 }
 
-
 .btn-clear-all:hover {
-
     background: #d32f2f !important;
 }
 
-
 .btn-autoroute {
-
     background: #FFD600 !important;
-
     color: #000 !important;
-
     border-color: #cca300 !important;
 }
 
-
 .btn-autoroute:hover {
-
     background: #ffea00 !important;
 }
 
-
 #windWidget {
-
     position: absolute;
-
     bottom: 15px;
-
     left: 10px;
-
     z-index: 1000;
-
-    background:
-        rgba(26, 26, 26, 0.9);
-
+    background: rgba(26, 26, 26, 0.9);
     color: #FFD600;
-
     padding: 6px;
-
     border-radius: 8px;
-
     border: 1px solid #FFD600;
-
     text-align: center;
-
     width: 70px;
-
-    box-shadow:
-        0 2px 10px rgba(0,0,0,0.5);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
-
 
 .wind-arrow {
-
     font-size: 22px;
-
     display: inline-block;
-
-    transition:
-        transform 0.3s ease;
+    transition: transform 0.3s ease;
 }
 
-
 .wind-info {
-
     font-size: 10px;
-
     color: #fff;
-
     margin-top: 1px;
-
     font-weight: bold;
 }
 
@@ -793,284 +692,85 @@ body {
 
 </head>
 
-
 <body>
 
-
 <div id="mapContainer">
-
     <div id="map"></div>
-
     <div id="windWidget">
-
-        <div
-            class="wind-arrow"
-            id="arrow">
-            ↑
-        </div>
-
-        <div
-            class="wind-info"
-            id="degInfo">
-            0°
-        </div>
-
-        <div
-            class="wind-info"
-            id="speedInfo">
-            0 м/с
-        </div>
-
+        <div class="wind-arrow" id="arrow">↑</div>
+        <div class="wind-info" id="degInfo">0°</div>
+        <div class="wind-info" id="speedInfo">0 м/с</div>
     </div>
-
 </div>
-
 
 <div id="bottomControlsPanel">
-
-
     <div class="controls-row">
-
-        <label>
-            🧭 УМОВНІ ЗНАКИ РХБЗ:
-        </label>
-
-
+        <label>🧭 УМОВНІ ЗНАКИ РХБЗ:</label>
         <select id="signSelect">
-
-            <option value="">
-                -- Оберіть умовний знак для встановлення кліком --
-            </option>
-
-            <option value="ICO_DETECT_RADIATION">
-                Точка рад. забруднення (detect_radiation)
-            </option>
-
-            <option value="ICO_DETECT_CHEMICAL">
-                Точка хім. забруднення (detect_chemical)
-            </option>
-
-            <option value="ICO_DETECT_BIOLOGICAL">
-                Точка біо. зараження (detect_biological)
-            </option>
-
-            <option value="ICO_CBRN_POST">
-                Пост РХ спостереження (cbrn_post)
-            </option>
-
-            <option value="ICO_NUCLEAR_BLAST">
-                Епіцентр ядерного вибуху (nuclear_blast)
-            </option>
-
-            <option value="ICO_BIOLOGICAL_HAZARD_SITE">
-                Біологічно небезпечний об'єкт
-            </option>
-
-            <option value="ICO_CHEMICAL_HAZARD_SITE">
-                Хімічно небезпечний об'єкт
-            </option>
-
-            <option value="ICO_RADIOACTIVE_SITE">
-                Радіаційно небезпечний об'єкт
-            </option>
-
-            <option value="ICO_CBRN_CONTAMINATION_AREA">
-                Район РХБ забруднення
-            </option>
-
-            <option value="ICO_CBRN_RECON_AREA">
-                Район РХБЗ розвідки
-            </option>
-
-            <option value="ICO_DECON_AREA_SPECIAL">
-                Район спеціальної обробки
-            </option>
-
-            <option value="ICO_DECON_POINT_SPECIAL">
-                Пункт спеціальної обробки
-            </option>
-
+            <option value="">-- Оберіть умовний знак для встановлення кліком --</option>
+            <option value="ICO_DETECT_RADIATION">Точка рад. забруднення (detect_radiation)</option>
+            <option value="ICO_DETECT_CHEMICAL">Точка хім. забруднення (detect_chemical)</option>
+            <option value="ICO_DETECT_BIOLOGICAL">Точка біо. зараження (detect_biological)</option>
+            <option value="ICO_CBRN_POST">Пост РХ спостереження (cbrn_post)</option>
+            <option value="ICO_NUCLEAR_BLAST">Епіцентр ядерного вибуху (nuclear_blast)</option>
+            <option value="ICO_BIOLOGICAL_HAZARD_SITE">Біологічно небезпечний об'єкт</option>
+            <option value="ICO_CHEMICAL_HAZARD_SITE">Хімічно небезпечний об'єкт</option>
+            <option value="ICO_RADIOACTIVE_SITE">Радіаційно небезпечний об'єкт</option>
+            <option value="ICO_CBRN_CONTAMINATION_AREA">Район РХБ забруднення</option>
+            <option value="ICO_CBRN_RECON_AREA">Район РХБЗ розвідки</option>
+            <option value="ICO_DECON_AREA_SPECIAL">Район спеціальної обробки</option>
+            <option value="ICO_DECON_POINT_SPECIAL">Пункт спеціальної обробки</option>
         </select>
 
-        <button
-            class="panel-btn"
-            style="
-                background:#fff3e0;
-                border-color:#d97706;
-                color:#b45309;
-            "
-            id="reconRouteBtn">
-
+        <button class="panel-btn" style="background:#fff3e0; border-color:#d97706; color:#b45309;" id="reconRouteBtn">
             Маршрут (ручний)
-
         </button>
 
-
-        <button
-            class="panel-btn"
-            style="
-                background:#e1f5fe;
-                border-color:#0288d1;
-            "
-            id="textBtn">
-
+        <button class="panel-btn" style="background:#e1f5fe; border-color:#0288d1;" id="textBtn">
             Текст
-
         </button>
 
-
-        <button
-            class="panel-btn"
-            style="
-                background:#efebe9;
-                border-color:#5d4037;
-            "
-            id="ellipseBtn">
-
+        <button class="panel-btn" style="background:#efebe9; border-color:#5d4037;" id="ellipseBtn">
             Еліпс AEGL
-
         </button>
 
-
-        <button
-            class="panel-btn"
-            style="
-                background:#ffffff;
-                border-color:#616161;
-            "
-            id="stopBtn">
-
+        <button class="panel-btn" style="background:#ffffff; border-color:#616161;" id="stopBtn">
             ЗАВЕРШИТИ знак
-
         </button>
 
-
-        <button
-            class="panel-btn btn-stop"
-            id="deleteModeBtn">
-
+        <button class="panel-btn btn-stop" id="deleteModeBtn">
             🗑️ ВИДАЛИТИ (кліком)
-
         </button>
 
-
-        <button
-            class="panel-btn btn-clear-all"
-            id="clearAllMapBtn">
-
+        <button class="panel-btn btn-clear-all" id="clearAllMapBtn">
             ОЧИСТИТИ ВСЮ КАРТУ
-
         </button>
-
     </div>
 
-
     <div class="controls-row">
-
-        <label>
-            МАРШРУТ (через ';'):
-        </label>
-
-
-        <input
-            type="text"
-            id="autoRouteInput"
-            placeholder="Наприклад: Київ; Фастів; Житомир"
-            style="
-                flex:1;
-                min-width:220px;
-            "
-        >
-
-
-        <button
-            class="panel-btn btn-autoroute"
-            id="buildAutoRouteBtn">
-
+        <label>МАРШРУТ (через ';'):</label>
+        <input type="text" id="autoRouteInput" placeholder="Наприклад: Київ; Фастів; Житомир" style="flex:1; min-width:220px;">
+        <button class="panel-btn btn-autoroute" id="buildAutoRouteBtn">
             Маршрут (автоматичний режим)
-
         </button>
-
     </div>
-
 
     <div class="controls-row">
-
-        <label>
-            МЕТЕО — Напрямок вітру (звідки дме):
-        </label>
-
-
-        <input
-            type="number"
-            id="windInput"
-            placeholder="Градуси (0-360)"
-            min="0"
-            max="360"
-            value="0"
-            style="width:120px;"
-        >
-
-
-        <label>
-            Швидкість вітру:
-        </label>
-
-
-        <input
-            type="number"
-            id="windSpeedInput"
-            placeholder="м/с"
-            min="0"
-            value="2.0"
-            step="0.1"
-            style="width:90px;"
-        >
-
-
-        <button
-            class="panel-btn"
-            style="
-                background:#fff59d;
-                border-color:#fbc02d;
-            "
-            id="applyMeteoBtn">
-
+        <label>МЕТЕО — Напрямок вітру (звідки дме):</label>
+        <input type="number" id="windInput" placeholder="Градуси (0-360)" min="0" max="360" value="0" style="width:120px;">
+        <label>Швидкість вітру:</label>
+        <input type="number" id="windSpeedInput" placeholder="м/с" min="0" value="2.0" step="0.1" style="width:90px;">
+        <button class="panel-btn" style="background:#fff59d; border-color:#fbc02d;" id="applyMeteoBtn">
             🌀 Застосувати
-
         </button>
-
-
-        <button
-            class="panel-btn"
-            style="
-                background:#c8e6c9;
-                border-color:#388e3c;
-                margin-left:15px;
-            "
-            id="htmlBtn">
-
+        <button class="panel-btn" style="background:#c8e6c9; border-color:#388e3c; margin-left:15px;" id="htmlBtn">
             🌐 Зберегти HTML
-
         </button>
-
-
-        <button
-            class="panel-btn"
-            style="
-                background:#ffcdd2;
-                border-color:#d32f2f;
-            "
-            id="printBtn">
-
+        <button class="panel-btn" style="background:#ffcdd2; border-color:#d32f2f;" id="printBtn">
             🖨️ Друк / PDF
-
         </button>
-
     </div>
-
 </div>
-
 
 <script>
 
@@ -1121,6 +821,9 @@ var baseMaps = {
 
 L.control.layers(baseMaps, null, { collapsed: false }).addTo(map);
 
+// Прапор активації режиму малювання
+var isDrawingMode = false;
+
 // Завантаження точок розвідки
 if (Array.isArray(DATA_FROM_PYTHON)) {
     DATA_FROM_PYTHON.forEach(function(p) {
@@ -1136,24 +839,40 @@ if (Array.isArray(DATA_FROM_PYTHON)) {
     });
 }
 
-// Кнопка "Маршрут (ручний)"
+// Початок малювання ручного маршруту
 document.getElementById('reconRouteBtn').addEventListener('click', function() {
+    isDrawingMode = true;
     map.pm.enableDraw('Line', {
         pathOptions: { color: '#d97706', weight: 4 }
     });
 });
 
-// Завершення малювання
+// Зупинка режимів
 document.getElementById('stopBtn').addEventListener('click', function() {
+    isDrawingMode = false;
     map.pm.disableDraw();
 });
 
-// Клік по карті для захоплення координат (тільки коли НЕ ввімкнено режим малювання)
+// При завершенні малювання фігури
+map.on('pm:create', function(e) {
+    isDrawingMode = false;
+});
+
+// Клік по карті
 map.on('click', function(e) {
-    if (map.pm.globalDrawModeEnabled()) {
-        return; // Не перезавантажувати сторінку під час нанесення маршруту
+    // Якщо увімкнено малювання Geoman або активовано наш прапор — скасовуємо передачу координат в Python
+    if (isDrawingMode || map.pm.globalDrawModeEnabled()) {
+        return;
     }
-    window.location.href = '?click_lat=' + e.latlng.lat + '&click_lng=' + e.latlng.lng;
+    
+    // Використовуємо window.parent для запобігання вкладенню iframe у сам себе
+    var targetWindow = window.parent || window;
+    var currentUrl = new URL(targetWindow.location.href);
+    
+    currentUrl.searchParams.set('click_lat', e.latlng.lat.toFixed(5));
+    currentUrl.searchParams.set('click_lng', e.latlng.lng.toFixed(5));
+    
+    targetWindow.location.href = currentUrl.toString();
 });
 
 </script>
