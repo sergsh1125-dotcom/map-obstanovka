@@ -3095,10 +3095,14 @@ map.on(
                 ).toFixed(2);
 
 
-            var labelTxt =
-                "Маршрут №: " +
-                distKm +
-                " км";
+            var routeNum = prompt("Введіть номер маршруту:", "1");
+            var labelTxt = "";
+
+            if (routeNum && routeNum.trim() !== "") {
+                labelTxt = "Маршрут № " + routeNum.trim() + " (" + distKm + " км)";
+            } else {
+                labelTxt = "Маршрут: " + distKm + " км";
+            }
 
 
             layer.__cbrnLabel =
@@ -3360,10 +3364,10 @@ document.getElementById(
 
         exportHtml =
             exportHtml.replace(
-                /var DATA_FROM_PYTHON\\s*=\\s*[\\s\\S]*?;\\s*var SAVED_MAP_OBJECTS\\s*=\\s*[\\s\\S]*?;/,
+                /var DATA_FROM_PYTHON\s*=\s*[\s\S]*?;\s*var SAVED_MAP_OBJECTS\s*=\s*[\s\S]*?;/,
                 "var DATA_FROM_PYTHON = " +
                 pointsString +
-                ";\\n" +
+                ";\n" +
                 "var SAVED_MAP_OBJECTS = " +
                 objectsString +
                 ";"
