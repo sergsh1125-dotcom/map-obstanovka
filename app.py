@@ -12,7 +12,7 @@ st.set_page_config(page_title="Платформа ХБРЯ", layout="wide")
 
 
 # ============================================================
-# СТИЛИ STREAMLIT
+# СТИЛІ STREAMLIT
 # ============================================================
 
 st.markdown(
@@ -122,7 +122,7 @@ if "map_objects" not in st.session_state:
 
 
 # ============================================================
-# ВОССТАНОВЛЕНИЕ СОСТОЯНИЯ КАРТЫ
+# ВІДНОВЛЕННЯ СТАНУ КАРТИ
 # ============================================================
 
 if "map_state" in st.query_params:
@@ -145,7 +145,7 @@ if "map_state" in st.query_params:
 
 
 # ============================================================
-# КООРДИНАТЫ
+# КООРДИНАТИ
 # ============================================================
 
 if "captured_lat" not in st.session_state:
@@ -157,7 +157,7 @@ if "captured_lng" not in st.session_state:
 
 
 # ============================================================
-# ПОЛНОЕ ОЧИЩЕНИЕ
+# ПОВНЕ ОЧИЩЕННЯ
 # ============================================================
 
 if "clear_all" in st.query_params:
@@ -174,7 +174,7 @@ if "clear_all" in st.query_params:
 
 
 # ============================================================
-# УДАЛЕНИЕ ТОЧКИ РАЗВЕДКИ
+# УДАЛЕННЯ ТОЧКИ РОЗВІДКИ
 # ============================================================
 
 if "delete_point_idx" in st.query_params:
@@ -197,7 +197,7 @@ if "delete_point_idx" in st.query_params:
 
 
 # ============================================================
-# КООРДИНАТЫ КЛИКА ПО КАРТЕ
+# КООРДИНАТИ КЛІКУ ПО КАРТІ
 # ============================================================
 
 if "click_lat" in st.query_params and "click_lng" in st.query_params:
@@ -216,7 +216,7 @@ if "click_lat" in st.query_params and "click_lng" in st.query_params:
 
 
 # ============================================================
-# ПРАВАЯ ПАНЕЛЬ
+# ПРАВА ПАНЕЛЬ
 # ============================================================
 
 with col_gui:
@@ -253,7 +253,7 @@ with col_gui:
     ):
 
         m_type = st.radio(
-            "Тип загрязнення:",
+            "Тип забруднення:",
             [
                 "Радіоактивне",
                 "Хімічне",
@@ -473,7 +473,7 @@ with col_gui:
             st.error(f"Помилка: {str(e)}")
 
     # ========================================================
-    # ТАБЛИЦА ТОЧЕК
+    # ТАБЛИЦЯ ТОЧОК
     # ========================================================
 
     if st.session_state.rkhb_points:
@@ -501,7 +501,7 @@ with col_gui:
 
 
 # ============================================================
-# JSON ДАННЫЕ
+# JSON ДАНІ
 # ============================================================
 
 points_json = json.dumps(
@@ -517,7 +517,7 @@ map_objects_json = json.dumps(
 
 
 # ============================================================
-# HTML / JAVASCRIPT КАРТЫ
+# HTML / JAVASCRIPT КАРТИ
 # ============================================================
 
 html_map_template = """<!DOCTYPE html>
@@ -526,6 +526,9 @@ html_map_template = """<!DOCTYPE html>
 <head>
 
 <meta charset="UTF-8">
+
+<!-- Запобігає відкриттю посилань у батьківському вікні -->
+<base target="_top">
 
 <title>Map Module CBRN</title>
 
@@ -708,6 +711,7 @@ body {
     color: #ffffff !important;
 
     border-color: #880e4f !important;
+
 }
 
 
@@ -784,104 +788,6 @@ body {
 
     font-weight: bold;
 }
-
-
-.route-label {
-
-    background:
-        rgba(0, 0, 0, 0.85) !important;
-
-    border:
-        1px solid #d97706 !important;
-
-    color: #fff !important;
-
-    font-size: 11px !important;
-
-    font-weight: bold !important;
-
-    padding: 2px 6px !important;
-
-    border-radius: 4px !important;
-
-    white-space: nowrap !important;
-}
-
-.route-endpoint {
-    position: relative;
-    width: 18px;
-    height: 30px;
-    background: transparent !important;
-}
-.route-endpoint::before {
-    content: ""; position: absolute; left: 8px; top: 9px;
-    width: 2px; height: 19px; background: #222; border-radius: 1px;
-}
-.route-endpoint::after {
-    content: ""; position: absolute; left: 3px; top: 0;
-    width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;
-    box-shadow: 0 0 0 1px #222, 0 2px 5px rgba(0,0,0,0.45);
-}
-.route-start::after { background: #00a000; }
-.route-finish::after { background: #d00000; }
-
-
-.leaflet-div-icon {
-
-    background: transparent !important;
-
-    border: none !important;
-
-    box-shadow: none !important;
-}
-
-
-.cbrn-military-lbl {
-
-    font-family: Arial, sans-serif;
-
-    font-size: 12px;
-
-    font-weight: bold;
-
-    color: #000 !important;
-
-    text-align: center;
-
-    display: inline-block;
-
-    white-space: nowrap;
-
-    line-height: 1.3;
-
-    background: transparent !important;
-}
-
-
-.cbrn-line-divider {
-
-    border-bottom:
-        2px solid #000 !important;
-
-    width: 100%;
-
-    display: block;
-
-    margin: 2px 0;
-}
-
-
-.cbrn-date-sub {
-
-    font-size: 11px;
-
-    font-weight: bold;
-
-    color: #000 !important;
-
-    display: block;
-}
-
 
 </style>
 
@@ -965,7 +871,7 @@ body {
             </option>
 
             <option value="ICO_RADIOACTIVE_SITE">
-                Радіаціно небезпечний об'єкт
+                Радіаційно небезпечний об'єкт
             </option>
 
             <option value="ICO_CBRN_CONTAMINATION_AREA">
@@ -985,6 +891,7 @@ body {
             </option>
 
         </select>
+
         <button
             class="panel-btn"
             style="
@@ -1229,7 +1136,23 @@ if (Array.isArray(DATA_FROM_PYTHON)) {
     });
 }
 
+// Кнопка "Маршрут (ручний)"
+document.getElementById('reconRouteBtn').addEventListener('click', function() {
+    map.pm.enableDraw('Line', {
+        pathOptions: { color: '#d97706', weight: 4 }
+    });
+});
+
+// Завершення малювання
+document.getElementById('stopBtn').addEventListener('click', function() {
+    map.pm.disableDraw();
+});
+
+// Клік по карті для захоплення координат (тільки коли НЕ ввімкнено режим малювання)
 map.on('click', function(e) {
+    if (map.pm.globalDrawModeEnabled()) {
+        return; // Не перезавантажувати сторінку під час нанесення маршруту
+    }
     window.location.href = '?click_lat=' + e.latlng.lat + '&click_lng=' + e.latlng.lng;
 });
 
@@ -1241,7 +1164,7 @@ map.on('click', function(e) {
 
 
 # ============================================================
-# ВПРОАДЖЕННЯ ДАНИХ ТА РЕНДЕРИНГ
+# ВПРОВАДЖЕННЯ ДАНИХ ТА РЕНДЕРИНГ
 # ============================================================
 
 html_rendered = (
