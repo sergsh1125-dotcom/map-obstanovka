@@ -949,6 +949,24 @@ body {
     white-space: nowrap !important;
 }
 
+.route-endpoint {
+    position: relative;
+    width: 18px;
+    height: 30px;
+    background: transparent !important;
+}
+.route-endpoint::before {
+    content: ""; position: absolute; left: 8px; top: 9px;
+    width: 2px; height: 19px; background: #222; border-radius: 1px;
+}
+.route-endpoint::after {
+    content: ""; position: absolute; left: 3px; top: 0;
+    width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;
+    box-shadow: 0 0 0 1px #222, 0 2px 5px rgba(0,0,0,0.45);
+}
+.route-start::after { background: #00a000; }
+.route-finish::after { background: #d00000; }
+
 
 .leaflet-div-icon {
 
@@ -1113,24 +1131,6 @@ body {
             </option>
 
         </select>
-
-
-        <!-- НОВЫЙ ОБЫЧНЫЙ МАРКЕР -->
-
-        <button
-            class="panel-btn"
-            style="
-                background:#e3f2fd;
-                border-color:#1976d2;
-                color:#1565c0;
-            "
-            id="markerBtn">
-
-            📍 Маркер
-
-        </button>
-
-
         <button
             class="panel-btn"
             style="
@@ -1624,6 +1624,32 @@ function getTooltipText(layer) {
 
 
 // ============================================================
+// МАРКЕРЫ НАЧАЛА / КОНЦА МАРШРУТА
+// ============================================================
+
+function createRouteEndpoint(latlng, type) {
+    var isStart = type === 'start';
+    var icon = L.divIcon({
+        className: '',
+        html: '<div class="route-endpoint ' + (isStart ? 'route-start' : 'route-finish') + '"></div>',
+        iconSize: [18,30],
+        iconAnchor: [9,30]
+    });
+    var marker = L.marker(latlng, { icon: icon, zIndexOffset: 1000 }).addTo(map);
+    marker.__cbrnType = 'route_endpoint';
+    marker.__routeEndpointType = type;
+    attachRemovalClick(marker, null);
+    return marker;
+}
+
+function addRouteEndpoints(latlngs) {
+    if (!latlngs || latlngs.length < 2) return;
+    createRouteEndpoint(latlngs[0], 'start');
+    createRouteEndpoint(latlngs[latlngs.length - 1], 'finish');
+}
+
+
+// ============================================================
 // СОХРАНЕНИЕ ОБЪЕКТОВ
 // ============================================================
 
@@ -1945,6 +1971,20 @@ function captureMapObjects() {
 
             }
 
+            else if (
+                type === 'route_endpoint'
+                &&
+                layer.getLatLng
+            ) {
+                var ep = layer.getLatLng();
+                objects.push({
+                    type: 'route_endpoint',
+                    lat: ep.lat,
+                    lng: ep.lng,
+                    endpointType: layer.__routeEndpointType || 'start'
+                });
+            }
+
         }
     );
 
@@ -2233,10 +2273,6 @@ var textMode = false;
 var ellipseMode = false;
 
 var isReconMode = false;
-
-var markerMode = false;
-
-
 // ============================================================
 // ОЧИСТКА РЕЖИМОВ
 // ============================================================
@@ -2250,10 +2286,6 @@ function clearModes() {
     ellipseMode = false;
 
     isReconMode = false;
-
-    markerMode = false;
-
-
     document.getElementById(
         'signSelect'
     ).value = "";
@@ -2748,6 +2780,9 @@ document.getElementById(
             );
 
 
+            addRouteEndpoints(rLayer.__cbrnPoints);
+
+
             map.fitBounds(
                 rLayer.getBounds(),
                 {
@@ -2904,24 +2939,6 @@ document.getElementById(
     ellipseMode = false;
 
     isReconMode = false;
-
-    markerMode = false;
-
-};
-
-
-// ============================================================
-// ОБЫЧНЫЙ МАРКЕР
-// ============================================================
-
-document.getElementById(
-    'markerBtn'
-).onclick = function() {
-
-    clearModes();
-
-    markerMode = true;
-
 };
 
 
@@ -3113,6 +3130,8 @@ map.on(
                         'route-label'
                 }
             );
+
+            addRouteEndpoints(latlngs);
 
         }
 
@@ -3569,8 +3588,6 @@ map.on(
             !ellipseMode
             &&
             !isReconMode
-            &&
-            !markerMode
         ) {
 
 
@@ -3626,63 +3643,6 @@ map.on(
             return;
 
         }
-
-
-        // ----------------------------------------------------
-        // ОБЫЧНЫЙ МАРКЕР
-        // ----------------------------------------------------
-
-        if (markerMode) {
-
-
-            var standardMarker =
-                L.marker(
-                    e.latlng
-                ).addTo(map);
-
-
-            standardMarker.__cbrnType =
-                'sign';
-
-
-            standardMarker.__cbrnIcon =
-                '';
-
-
-            standardMarker.bindTooltip(
-                "📍 " +
-                lat.toFixed(5) +
-                " , " +
-                lng.toFixed(5),
-                {
-                    direction: 'top',
-
-                    offset:
-                        [
-                            0,
-                            -10
-                        ]
-                }
-            );
-
-
-            attachRemovalClick(
-                standardMarker,
-                null
-            );
-
-
-            saveMapState();
-
-
-            markerMode =
-                false;
-
-
-            return;
-
-        }
-
 
         // ----------------------------------------------------
         // УСЛОВНЫЙ ЗНАК
@@ -4475,6 +4435,16 @@ function restoreMapObjects(
                     attachRemovalClick(
                         rRestored,
                         null
+                    );
+
+                }
+
+
+                else if (obj.type === 'route_endpoint') {
+
+                    createRouteEndpoint(
+                        [obj.lat, obj.lng],
+                        obj.endpointType || 'start'
                     );
 
                 }
